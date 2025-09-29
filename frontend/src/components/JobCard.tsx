@@ -226,7 +226,7 @@ export function JobCard({ job, isActive, onUpdate }: JobCardProps) {
             <button
               onClick={() => {
                 // TODO: Implement retry functionality
-                console.log('Retry job:', job.jobId);
+                console.warn('Retry job:', job.jobId);
               }}
               className="px-3 py-1 text-xs text-blue-700 bg-blue-100 rounded hover:bg-blue-200"
             >

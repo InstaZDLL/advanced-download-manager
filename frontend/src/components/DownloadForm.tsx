@@ -31,7 +31,7 @@ export function DownloadForm({ onJobCreated }: DownloadFormProps) {
     createDownloadMutation.mutate(formData);
   };
 
-  const handleInputChange = (field: keyof CreateDownloadRequest, value: any) => {
+  const handleInputChange = (field: keyof CreateDownloadRequest, value: string | CreateDownloadRequest[keyof CreateDownloadRequest]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -61,7 +61,7 @@ export function DownloadForm({ onJobCreated }: DownloadFormProps) {
         <select
           id="type"
           value={formData.type}
-          onChange={(e) => handleInputChange('type', e.target.value as any)}
+          onChange={(e) => handleInputChange('type', e.target.value as CreateDownloadRequest['type'])}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         >
           <option value="auto">Auto Detect</option>

@@ -6,7 +6,11 @@ export interface DownloadJobData {
   jobId: string;
   url: string;
   type: 'auto' | 'm3u8' | 'file' | 'youtube';
-  headers?: Record<string, string>;
+  headers?: {
+    ua?: string;
+    referer?: string;
+    extra?: Record<string, string>;
+  };
   transcode?: {
     to?: string;
     codec?: string;
@@ -17,8 +21,8 @@ export interface DownloadJobData {
 
 @Injectable()
 export class QueueService implements OnModuleInit, OnModuleDestroy {
-  private downloadQueue: Queue<DownloadJobData>;
-  private redis: Redis;
+  private downloadQueue!: Queue<DownloadJobData>;
+  private redis!: Redis;
   private readonly logger = new Logger(QueueService.name);
 
   constructor() {}
@@ -55,15 +59,15 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       this.logger.debug(`Job ${jobId} is waiting`);
     });
 
-    this.downloadQueue.on('active', (job) => {
+    (this.downloadQueue as any).on('active', (job: Job<DownloadJobData>) => {
       this.logger.log(`Job ${job.id} started processing`);
     });
 
-    this.downloadQueue.on('completed', (job) => {
+    (this.downloadQueue as any).on('completed', (job: Job<DownloadJobData>) => {
       this.logger.log(`Job ${job.id} completed`);
     });
 
-    this.downloadQueue.on('failed', (job, err) => {
+    (this.downloadQueue as any).on('failed', (job: Job<DownloadJobData> | undefined, err: Error) => {
       this.logger.error(`Job ${job?.id} failed: ${err.message}`);
     });
 

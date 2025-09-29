@@ -1,9 +1,10 @@
 {
-    "default": true,
-    "MD013": false,
-    "MD024": false,
-    "MD026": false,
-    "MD033": { "allowed_elements": ["br", "img", "a", "details", "summary"] },
-    "MD041": false,
-    "MD036": false
+  "default": true,
+  "MD013": false,
+  "MD024": false,
+  "MD026": false,
+  "MD029": false,
+  "MD033": { "allowed_elements": ["br", "img", "a", "details", "summary"] },
+  "MD041": false,
+  "MD036": false
 }

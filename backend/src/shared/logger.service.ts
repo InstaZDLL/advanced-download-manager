@@ -6,7 +6,8 @@ export class Logger implements LoggerService {
   private readonly pino: pino.Logger;
 
   constructor() {
-    this.pino = pino({
+    const pinoLogger = (pino as any).default || pino;
+    this.pino = pinoLogger({
       level: process.env.LOG_LEVEL || 'info',
       transport: process.env.NODE_ENV !== 'production' ? {
         target: 'pino-pretty',

@@ -108,17 +108,17 @@ export class YtDlpDownloader {
       };
 
     } catch (error) {
-      this.logger.error('yt-dlp download failed:', error);
+      this.logger.error('yt-dlp download failed:', error instanceof Error ? error.message : String(error));
 
       // Extract more specific error info
-      if (error.stderr) {
-        const stderr = error.stderr.toString();
+      if (error && typeof error === 'object' && 'stderr' in error) {
+        const stderr = String((error as any).stderr);
         if (stderr.includes('Video unavailable')) {
-          error.code = 'VIDEO_UNAVAILABLE';
+          (error as any).code = 'VIDEO_UNAVAILABLE';
         } else if (stderr.includes('network')) {
-          error.code = 'NETWORK_ERROR';
+          (error as any).code = 'NETWORK_ERROR';
         } else if (stderr.includes('format')) {
-          error.code = 'FORMAT_ERROR';
+          (error as any).code = 'FORMAT_ERROR';
         }
       }
 

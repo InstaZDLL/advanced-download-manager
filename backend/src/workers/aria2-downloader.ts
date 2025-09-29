@@ -161,13 +161,13 @@ export class Aria2Downloader {
       throw new Error(`aria2 RPC error: ${response.status} ${response.statusText}`);
     }
 
-    const result = await response.json();
+    const result = await response.json() as { error?: { message: string }; result?: unknown; };
 
     if (result.error) {
       throw new Error(`aria2 RPC error: ${result.error.message}`);
     }
 
-    return result;
+    return result.result;
   }
 
   async getGlobalStat() {

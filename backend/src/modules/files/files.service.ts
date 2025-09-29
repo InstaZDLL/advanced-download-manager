@@ -39,7 +39,7 @@ export class FilesService {
         completedAt: job.updatedAt,
       };
     } catch (error) {
-      this.logger.error(`Failed to get file metadata for job ${jobId}`, error);
+      this.logger.error(`Failed to get file metadata for job ${jobId}`, error instanceof Error ? error.message : String(error));
       throw new NotFoundException('File not found on disk');
     }
   }
@@ -71,7 +71,7 @@ export class FilesService {
         mimeType: this.getMimeType(job.outputPath),
       };
     } catch (error) {
-      this.logger.error(`Failed to access file for job ${jobId}`, error);
+      this.logger.error(`Failed to access file for job ${jobId}`, error instanceof Error ? error.message : String(error));
       throw new NotFoundException('File not found on disk');
     }
   }
@@ -136,7 +136,7 @@ export class FilesService {
 
             this.logger.debug(`Deleted old file: ${job.outputPath}`);
           } catch (error) {
-            this.logger.warn(`Failed to delete file ${job.outputPath}:`, error);
+            this.logger.warn(`Failed to delete file ${job.outputPath}:`, error instanceof Error ? error.message : String(error));
           }
         }
       }
@@ -157,7 +157,7 @@ export class FilesService {
         cleanedJobs: oldJobs.length,
       };
     } catch (error) {
-      this.logger.error('File cleanup failed', error);
+      this.logger.error('File cleanup failed', error instanceof Error ? error.message : String(error));
       throw error;
     }
   }

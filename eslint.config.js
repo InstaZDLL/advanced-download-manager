@@ -6,11 +6,11 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import jsxA11y from 'eslint-plugin-jsx-a11y'
 import importX from 'eslint-plugin-import-x'
-import { defineConfig, globalIgnores } from 'eslint/config'
+// import { defineConfig, globalIgnores } from 'eslint/config'
 
-export default defineConfig([
+export default [
   // Ignorer les dossiers générés
-  globalIgnores(['dist', 'build', 'coverage', '.vite', '.turbo']),
+  { ignores: ['dist', 'build', 'coverage', '.vite', '.turbo'] },
 
   // Code applicatif (TS/TSX)
   {
@@ -101,4 +101,4 @@ export default defineConfig([
       'no-console': 'off',
     },
   },
-])
+]

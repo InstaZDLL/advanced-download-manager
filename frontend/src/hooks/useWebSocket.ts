@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { io, type Socket } from 'socket.io-client';
 
 export interface WebSocketMessage {
   type: 'progress' | 'log' | 'completed' | 'failed' | 'job-update';
-  data: any;
+  data: unknown;
 }
 
 export function useWebSocket(url: string) {
@@ -23,12 +23,12 @@ export function useWebSocket(url: string) {
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('🔌 WebSocket connected');
+      console.warn('🔌 WebSocket connected');
       setConnected(true);
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('🔌 WebSocket disconnected:', reason);
+      console.warn('🔌 WebSocket disconnected:', reason);
       setConnected(false);
     });
 

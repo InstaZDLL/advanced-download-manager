@@ -50,8 +50,8 @@ export class HealthService {
       await this.database.$queryRaw`SELECT 1`;
       return { healthy: true, message: 'Database connection successful' };
     } catch (error) {
-      this.logger.error('Database health check failed', error);
-      return { healthy: false, message: `Database error: ${error.message}` };
+      this.logger.error('Database health check failed', error instanceof Error ? error.message : String(error));
+      return { healthy: false, message: `Database error: ${error instanceof Error ? error.message : String(error)}` };
     }
   }
 
@@ -61,8 +61,8 @@ export class HealthService {
       await redis.ping();
       return { healthy: true, message: 'Redis connection successful' };
     } catch (error) {
-      this.logger.error('Redis health check failed', error);
-      return { healthy: false, message: `Redis error: ${error.message}` };
+      this.logger.error('Redis health check failed', error instanceof Error ? error.message : String(error));
+      return { healthy: false, message: `Redis error: ${error instanceof Error ? error.message : String(error)}` };
     }
   }
 
@@ -157,7 +157,7 @@ export class HealthService {
     } catch (error) {
       return {
         healthy: false,
-        message: `Disk space check failed: ${error.message}`,
+        message: `Disk space check failed: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
   }
@@ -170,10 +170,10 @@ export class HealthService {
         healthy: stats.active <= 3, // Should not exceed max concurrent jobs
       };
     } catch (error) {
-      this.logger.error('Queue stats check failed', error);
+      this.logger.error('Queue stats check failed', error instanceof Error ? error.message : String(error));
       return {
         healthy: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }

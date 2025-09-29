@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { JobCard } from './JobCard';
-import type { Job } from '@/types';
 
 interface JobListProps {
   activeJobs: Set<string>;

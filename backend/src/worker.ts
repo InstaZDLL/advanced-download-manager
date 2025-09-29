@@ -12,7 +12,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 class DownloadWorker {
-  private worker: Worker;
+  private worker!: Worker;
   private redis: Redis;
   private db: PrismaClient;
   private logger: pino.Logger;
@@ -22,7 +22,8 @@ class DownloadWorker {
   private ffmpeg: FfmpegTranscoder;
 
   constructor() {
-    this.logger = pino({
+    const pinoLogger = (pino as any).default || pino;
+    this.logger = pinoLogger({
       level: process.env.LOG_LEVEL || 'info',
       transport: process.env.NODE_ENV !== 'production' ? {
         target: 'pino-pretty',
@@ -210,14 +211,16 @@ class DownloadWorker {
       this.logger.info(`✅ Job ${jobId} completed: ${finalFile.filename} (${stats.size} bytes)`);
 
     } catch (error) {
-      this.logger.error(`❌ Job ${jobId} failed:`, error);
+      this.logger.error(`❌ Job ${jobId} failed:`, error instanceof Error ? error.message : String(error));
 
-      await this.updateJobStatus(jobId, 'failed', error.code || 'UNKNOWN_ERROR', error.message);
+      const errorCode = error instanceof Error && 'code' in error ? (error as any).code : 'UNKNOWN_ERROR';
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.updateJobStatus(jobId, 'failed', errorCode, errorMessage);
 
       this.wsClient.emitFailed({
         jobId,
-        errorCode: error.code || 'UNKNOWN_ERROR',
-        message: error.message || 'Unknown error occurred',
+        errorCode,
+        message: errorMessage,
       });
 
       throw error; // Let BullMQ handle retry logic
