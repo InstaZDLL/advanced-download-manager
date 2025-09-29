@@ -1,6 +1,7 @@
-import pino from 'pino';
-import { io, Socket } from 'socket.io-client';
-import { ProgressEvent, LogEvent, CompletedEvent, FailedEvent } from '../modules/websocket/websocket.gateway.js';
+import type pino from 'pino';
+import type { Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
+import type { ProgressEvent, LogEvent, CompletedEvent, FailedEvent } from '../modules/websocket/websocket.gateway.js';
 
 export class WebSocketClient {
   private socket: Socket | null = null;

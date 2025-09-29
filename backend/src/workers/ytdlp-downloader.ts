@@ -1,9 +1,9 @@
 import { execa } from 'execa';
-import pino from 'pino';
+import type pino from 'pino';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import sanitizeFilename from 'sanitize-filename';
-import { WebSocketClient } from './websocket-client.js';
+import type { WebSocketClient } from './websocket-client.js';
 
 export interface YtDlpOptions {
   url: string;

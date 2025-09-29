@@ -1,9 +1,10 @@
 import 'reflect-metadata';
-import { Worker, Job } from 'bullmq';
+import type { Job } from 'bullmq';
+import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { PrismaClient } from '@prisma/client';
 import pino from 'pino';
-import { DownloadJobData } from './shared/queue.service.js';
+import type { DownloadJobData } from './shared/queue.service.js';
 import { YtDlpDownloader } from './workers/ytdlp-downloader.js';
 import { Aria2Downloader } from './workers/aria2-downloader.js';
 import { FfmpegTranscoder } from './workers/ffmpeg-transcoder.js';

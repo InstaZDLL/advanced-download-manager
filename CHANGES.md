@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Event Listeners**: Corrected BullMQ queue event parameter types
 - **Module Resolution**: Fixed pino logger ESM/CommonJS compatibility
 
+### Documentation Updates
+
+- Added `AGENTS.md` contributor guide covering project structure, development commands, coding style, testing, and PR guidelines.
+
 ## [1.0.3] - 2025-09-29
 
 ### TypeScript & Development Quality
