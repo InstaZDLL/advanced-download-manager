@@ -18,9 +18,12 @@
     "build": "cd backend && npm run build && cd ../frontend && npm run build",
     "test": "cd backend && npm test && cd ../frontend && npm test",
     "lint": "cd backend && npm run lint && cd ../frontend && npm run lint",
+    "typecheck": "tsc -b --pretty",
+    "typecheck:watch": "tsc -b -w --noEmit",
     "check:services": "echo 'Redis:' && (pgrep redis-server > /dev/null && echo '✅ Running' || echo '❌ Not running') && echo 'aria2:' && (pgrep aria2c > /dev/null && echo '✅ Running' || echo '❌ Not running')"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "typescript": "^5.9.2"
   }
 }

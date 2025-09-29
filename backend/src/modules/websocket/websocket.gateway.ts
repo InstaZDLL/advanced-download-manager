@@ -38,16 +38,10 @@ export interface FailedEvent {
   message: string;
 }
 
-@WSGateway({
-  cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'],
-    credentials: true,
-  },
-  transports: ['websocket'],
-})
+@WSGateway()  // Configuration centralisée dans SocketIOAdapter
 export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private connectedClients = new Map<string, Socket>();
 
@@ -97,7 +91,7 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   emitCompleted(event: CompletedEvent) {
     const room = `job:${event.jobId}`;
     this.server.to(room).emit('completed', event);
-    this.logger.info(`Job ${event.jobId} completed: ${event.filename}`);
+    this.logger.log(`Job ${event.jobId} completed: ${event.filename}`);
   }
 
   emitFailed(event: FailedEvent) {

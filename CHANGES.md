@@ -5,6 +5,34 @@ All notable changes to the Advanced Download Manager (ADM) project will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2025-09-29
+
+### TypeScript & Development Quality
+- **Project References**: Monorepo TypeScript avec build incrémental (`composite: true`)
+- **Real-time Type Checking**: vite-plugin-checker pour erreurs TS dans le navigateur
+- **Type Safety Renforcée**: Configuration stricte avec `useUnknownInCatchVariables`
+- **Build Mode**: `tsc -b` pour type-checking global optimisé
+- **Development Scripts**: Type-checking en parallèle du développement
+
+### Socket.IO & WebSocket Improvements
+- **Adaptateur Socket.IO robuste**: Configuration production-ready avec NestJS + Fastify
+- **CORS optimisé**: Support `127.0.0.1` + `localhost` avec méthodes explicites
+- **Connection State Recovery**: Reprise automatique après micro-coupures (120s)
+- **Transport configurables**: WebSocket + polling via variables d'environnement
+- **Path explicite**: `/socket.io` configurable pour éviter les collisions
+
+### Configuration & Environment
+- **Structure .env simplifiée**: Un seul .env par service (backend/frontend)
+- **Variables Socket.IO**: `SOCKET_IO_PATH`, `SIO_TRANSPORTS` configurables
+- **External Tools optionnels**: aria2, yt-dlp, ffmpeg commentés (plus de Docker)
+- **Database SQLite**: Migration PostgreSQL → SQLite avec chemin correct
+
+### Bug Fixes & Corrections
+- **Import TypeScript**: `import type` pour `verbatimModuleSyntax: true`
+- **Logger NestJS**: `logger.log()` au lieu de `logger.info()`
+- **WebSocket Gateway**: Configuration centralisée dans l'adaptateur
+- **API temporaire**: Réponses de test pour éviter erreurs 500
+
 ## [1.0.2] - 2025-01-29
 
 ### Major Changes

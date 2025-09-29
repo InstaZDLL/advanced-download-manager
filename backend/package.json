@@ -7,10 +7,13 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/main.js",
-    "dev": "tsx watch src/main.ts",
+    "dev": "concurrently -n API,TCHECK -c cyan,yellow \"tsx watch src/main.ts\" \"npm run typecheck:watch\"",
+    "dev:simple": "tsx watch src/main.ts",
     "worker": "tsx watch src/worker.ts",
     "lint": "eslint src/**/*.ts",
     "test": "jest",
+    "typecheck": "tsc -p . --noEmit --pretty",
+    "typecheck:watch": "tsc -p . --noEmit --watch --pretty",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy"

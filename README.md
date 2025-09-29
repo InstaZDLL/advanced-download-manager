@@ -1,6 +1,6 @@
-# Advanced Download Manager (ADM)
+# Advanced Download Manager (ADM) v1.0.2
 
-A modern, full-featured download manager built with React, NestJS, and Docker. Supports YouTube downloads, HLS streams, direct file downloads, and transcoding with real-time progress updates.
+A modern, full-featured download manager built with React 19, NestJS, and TypeScript. Supports YouTube downloads, HLS streams, direct file downloads, and transcoding with real-time progress updates.
 
 ## Features
 
@@ -9,8 +9,9 @@ A modern, full-featured download manager built with React, NestJS, and Docker. S
 - **Queue Management**: Concurrent download limiting (max 3 jobs) with priority queuing
 - **Transcoding**: FFmpeg integration for video format conversion
 - **Security**: API key authentication, rate limiting, CORS protection, input sanitization
-- **Web Interface**: Modern React frontend with Tailwind CSS
-- **Docker Ready**: Full containerization with Docker Compose
+- **Web Interface**: Modern React 19 frontend with Tailwind CSS
+- **TypeScript Robuste**: Project references, type-checking en temps réel, ESLint type-aware
+- **Development Ready**: Local development optimized (Docker removed for faster iteration)
 
 ## Architecture
 
@@ -27,11 +28,11 @@ A modern, full-featured download manager built with React, NestJS, and Docker. S
 - **TanStack Query** for data fetching
 - **Socket.IO Client** for real-time updates
 
-### Infrastructure
-- **Docker Compose** for orchestration (custom builds)
-- **Redis** for job queue
-- **aria2** standard daemon for file downloads (custom container)
-- **Nginx** for frontend serving and API proxying
+### TypeScript & Development
+- **Project References**: Monorepo TypeScript avec build incrémental
+- **Type Safety**: Configuration stricte avec `composite: true`
+- **Real-time Type Checking**: vite-plugin-checker + tsc watch mode
+- **Development Experience**: Hot reload + type errors dans le navigateur
 
 ## Quick Start
 
@@ -48,6 +49,30 @@ npm run dev
 ```
 
 **That's it!** 🎉 The app will be available at <http://localhost:5173>
+
+### TypeScript Development
+
+The project now includes robust TypeScript configuration with real-time type checking:
+
+```bash
+# Type-check all projects (recommended for CI)
+npm run typecheck
+
+# Type-check in watch mode during development
+npm run typecheck:watch
+
+# Frontend with real-time type errors in browser
+cd frontend && npm run dev
+
+# Backend with parallel type-checking
+cd backend && npm run dev
+```
+
+**Features:**
+- **Project References**: Monorepo TypeScript with incremental builds
+- **Real-time Checking**: Type errors displayed in browser via vite-plugin-checker
+- **Strict Configuration**: `useUnknownInCatchVariables`, `noUncheckedIndexedAccess`
+- **Build Mode**: `tsc -b` for optimized cross-project type checking
 
 ### What `npm run dev` does automatically
 
@@ -261,15 +286,25 @@ ADM/
 
 ### Scripts
 
+**Global (Monorepo)**:
+- `npm run dev` - Start all services (recommended)
+- `npm run typecheck` - Type-check all projects (tsc -b)
+- `npm run typecheck:watch` - Type-check in watch mode
+- `npm run install:all` - Install all dependencies
+- `npm run build` - Build backend + frontend
+- `npm run lint` - Lint backend + frontend
+
 **Backend**:
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
+- `npm run dev` - Start API server + type-checker in parallel
+- `npm run dev:simple` - Start API server only
 - `npm run worker` - Start worker process
+- `npm run typecheck` - Type-check backend only
 - `npm run db:migrate` - Run database migrations
 
 **Frontend**:
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
+- `npm run dev` - Start Vite + real-time type checking
+- `npm run build` - Build for production (tsc -b + vite build)
+- `npm run typecheck` - Type-check frontend only
 - `npm run lint` - Run ESLint
 
 ### Database
