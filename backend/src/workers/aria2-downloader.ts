@@ -1,6 +1,5 @@
 import type pino from 'pino';
 import * as path from 'path';
-import * as fs from 'fs/promises';
 import sanitizeFilename from 'sanitize-filename';
 import type { WebSocketClient } from './websocket-client.js';
 
@@ -74,16 +73,17 @@ export class Aria2Downloader {
       return result;
 
     } catch (error) {
-      this.logger.error('aria2 download failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const trace = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`aria2 download failed: ${errorMessage}`, trace);
       throw error;
     }
   }
 
   private async addDownload(url: string, options: Record<string, string>): Promise<string> {
-    const params = this.aria2Secret ? [`token:${this.aria2Secret}`, [url], options] : [[url], options];
+    const params: unknown[] = this.aria2Secret ? [`token:${this.aria2Secret}`, [url], options] : [[url], options];
 
-    const response = await this.rpcCall('aria2.addUri', params);
-    return response.result;
+    return this.rpcCall<string>('aria2.addUri', params);
   }
 
   private async monitorDownload(gid: string): Promise<{ filename: string; filepath: string; size: number }> {
@@ -119,14 +119,19 @@ export class Aria2Downloader {
 
       // Check status
       if (status.status === 'complete') {
-        const filename = path.basename(status.files[0].path);
-        const filepath = status.files[0].path;
-        const size = parseInt(status.totalLength);
+        const firstFile = status.files[0];
+        const filename = path.basename(firstFile.path);
+        const filepath = firstFile.path;
+        const size = parseInt(status.totalLength, 10);
 
         return { filename, filepath, size };
-      } else if (status.status === 'error') {
+      }
+
+      if (status.status === 'error') {
         throw new Error(`Download failed: ${status.errorMessage || 'Unknown error'}`);
-      } else if (status.status === 'removed') {
+      }
+
+      if (status.status === 'removed') {
         throw new Error('Download was cancelled');
       }
 
@@ -135,13 +140,12 @@ export class Aria2Downloader {
     }
   }
 
-  private async getDownloadStatus(gid: string) {
-    const params = this.aria2Secret ? [`token:${this.aria2Secret}`, gid] : [gid];
-    const response = await this.rpcCall('aria2.tellStatus', params);
-    return response.result;
+  private async getDownloadStatus(gid: string): Promise<Aria2Status> {
+    const params: unknown[] = this.aria2Secret ? [`token:${this.aria2Secret}`, gid] : [gid];
+    return this.rpcCall<Aria2Status>('aria2.tellStatus', params);
   }
 
-  private async rpcCall(method: string, params: any[]): Promise<any> {
+  private async rpcCall<T>(method: string, params: unknown[]): Promise<T> {
     const payload = {
       jsonrpc: '2.0',
       method,
@@ -161,18 +165,50 @@ export class Aria2Downloader {
       throw new Error(`aria2 RPC error: ${response.status} ${response.statusText}`);
     }
 
-    const result = await response.json() as { error?: { message: string }; result?: unknown; };
+    const result = await response.json() as Aria2RpcResponse<T>;
 
     if (result.error) {
       throw new Error(`aria2 RPC error: ${result.error.message}`);
+    }
+
+    if (!('result' in result)) {
+      throw new Error('aria2 RPC response did not include a result');
     }
 
     return result.result;
   }
 
   async getGlobalStat() {
-    const params = this.aria2Secret ? [`token:${this.aria2Secret}`] : [];
-    const response = await this.rpcCall('aria2.getGlobalStat', params);
-    return response.result;
+    const params: unknown[] = this.aria2Secret ? [`token:${this.aria2Secret}`] : [];
+    return this.rpcCall<Aria2GlobalStat>('aria2.getGlobalStat', params);
   }
+}
+
+interface Aria2FileEntry {
+  path: string;
+}
+
+interface Aria2Status {
+  status: 'active' | 'waiting' | 'paused' | 'error' | 'complete' | 'removed';
+  totalLength: string;
+  completedLength: string;
+  downloadSpeed?: string;
+  files: Aria2FileEntry[];
+  errorMessage?: string;
+}
+
+interface Aria2GlobalStat {
+  downloadSpeed: string;
+  numActive: string;
+  numStopped: string;
+  numStoppedTotal: string;
+  numWaiting: string;
+  uploadSpeed: string;
+}
+
+interface Aria2RpcResponse<T> {
+  result: T;
+  error?: {
+    message: string;
+  };
 }

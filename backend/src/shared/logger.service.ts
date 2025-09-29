@@ -1,13 +1,13 @@
 import { Injectable, LoggerService } from '@nestjs/common';
-import pino from 'pino';
+import { pino } from 'pino';
+import type { Bindings, Logger as PinoLogger, LoggerOptions } from 'pino';
 
 @Injectable()
 export class Logger implements LoggerService {
-  private readonly pino: pino.Logger;
+  private readonly pino: PinoLogger;
 
   constructor() {
-    const pinoLogger = (pino as any).default || pino;
-    this.pino = pinoLogger({
+    const options: LoggerOptions = {
       level: process.env.LOG_LEVEL || 'info',
       transport: process.env.NODE_ENV !== 'production' ? {
         target: 'pino-pretty',
@@ -17,34 +17,36 @@ export class Logger implements LoggerService {
           ignore: 'pid,hostname'
         }
       } : undefined,
-    });
+    };
+
+    this.pino = pino(options);
   }
 
-  log(message: any, context?: string) {
-    this.pino.info({ context }, message);
+  log(message: unknown, context?: string) {
+    this.pino.info({ context, payload: message });
   }
 
-  error(message: any, trace?: string, context?: string) {
-    this.pino.error({ context, trace }, message);
+  error(message: unknown, trace?: string, context?: string) {
+    this.pino.error({ context, trace, payload: message, err: message instanceof Error ? message : undefined });
   }
 
-  warn(message: any, context?: string) {
-    this.pino.warn({ context }, message);
+  warn(message: unknown, context?: string) {
+    this.pino.warn({ context, payload: message });
   }
 
-  debug(message: any, context?: string) {
-    this.pino.debug({ context }, message);
+  debug(message: unknown, context?: string) {
+    this.pino.debug({ context, payload: message });
   }
 
-  verbose(message: any, context?: string) {
-    this.pino.trace({ context }, message);
+  verbose(message: unknown, context?: string) {
+    this.pino.trace({ context, payload: message });
   }
 
-  info(message: any, context?: string) {
-    this.pino.info({ context }, message);
+  info(message: unknown, context?: string) {
+    this.pino.info({ context, payload: message });
   }
 
-  child(bindings: Record<string, any>) {
+  child(bindings: Bindings) {
     return this.pino.child(bindings);
   }
 }

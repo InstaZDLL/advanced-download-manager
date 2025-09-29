@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { Queue, Worker, Job } from 'bullmq';
+import { Queue, Job, QueueEvents } from 'bullmq';
 import { Redis } from 'ioredis';
 
 export interface DownloadJobData {
@@ -23,9 +23,8 @@ export interface DownloadJobData {
 export class QueueService implements OnModuleInit, OnModuleDestroy {
   private downloadQueue!: Queue<DownloadJobData>;
   private redis!: Redis;
+  private queueEvents!: QueueEvents;
   private readonly logger = new Logger(QueueService.name);
-
-  constructor() {}
 
   async onModuleInit() {
     // Initialize Redis connection
@@ -51,24 +50,28 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     });
 
     // Add event listeners
-    this.downloadQueue.on('error', (err) => {
-      this.logger.error('Download queue error', err);
+    this.downloadQueue.on('error', (err: Error) => {
+      this.logger.error(`Download queue error: ${err.message}`, err.stack);
     });
 
     this.downloadQueue.on('waiting', (jobId) => {
       this.logger.debug(`Job ${jobId} is waiting`);
     });
 
-    (this.downloadQueue as any).on('active', (job: Job<DownloadJobData>) => {
-      this.logger.log(`Job ${job.id} started processing`);
+    this.queueEvents = new QueueEvents('downloads', {
+      connection: this.redis,
     });
 
-    (this.downloadQueue as any).on('completed', (job: Job<DownloadJobData>) => {
-      this.logger.log(`Job ${job.id} completed`);
+    this.queueEvents.on('active', ({ jobId }) => {
+      this.logger.log(`Job ${jobId} started processing`);
     });
 
-    (this.downloadQueue as any).on('failed', (job: Job<DownloadJobData> | undefined, err: Error) => {
-      this.logger.error(`Job ${job?.id} failed: ${err.message}`);
+    this.queueEvents.on('completed', ({ jobId }) => {
+      this.logger.log(`Job ${jobId} completed`);
+    });
+
+    this.queueEvents.on('failed', ({ jobId, failedReason }) => {
+      this.logger.error(`Job ${jobId} failed: ${failedReason ?? 'unknown reason'}`);
     });
 
     this.logger.log('✅ Queue service initialized');
@@ -76,6 +79,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy() {
     await this.downloadQueue?.close();
+    await this.queueEvents?.close();
     await this.redis?.disconnect();
     this.logger.log('🔌 Queue service disconnected');
   }

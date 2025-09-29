@@ -2,6 +2,8 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import type { INestApplicationContext } from '@nestjs/common';
 import type { ServerOptions } from 'socket.io';
 
+type SocketTransport = 'polling' | 'websocket';
+
 export class SocketIOAdapter extends IoAdapter {
   constructor(app?: INestApplicationContext) {
     super(app);
@@ -14,6 +16,11 @@ export class SocketIOAdapter extends IoAdapter {
       .map(s => s.trim())
       .filter(Boolean);
 
+    const envTransports = process.env.SIO_TRANSPORTS
+      ?.split(',')
+      .map(transport => transport.trim())
+      .filter((transport): transport is SocketTransport => transport === 'websocket' || transport === 'polling');
+
     const defaultOptions: Partial<ServerOptions> = {
       path: process.env.SOCKET_IO_PATH ?? '/socket.io',
       cors: {
@@ -22,7 +29,7 @@ export class SocketIOAdapter extends IoAdapter {
         methods: ['GET', 'POST', 'OPTIONS'],
       },
       // Mets seulement 'websocket' si tu veux éviter le fallback long-polling
-      transports: (process.env.SIO_TRANSPORTS?.split(',') as any) ?? ['websocket', 'polling'],
+      transports: envTransports ?? ['websocket', 'polling'],
       allowEIO3: false,          // passe à true uniquement si tu dois supporter Socket.IO v2
       serveClient: false,
       connectionStateRecovery: { maxDisconnectionDuration: 120_000 },

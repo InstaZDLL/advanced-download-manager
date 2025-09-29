@@ -1,4 +1,5 @@
 import { execa } from 'execa';
+import type { ExecaChildProcess, ExecaError } from 'execa';
 import type pino from 'pino';
 import * as path from 'path';
 import * as fs from 'fs/promises';
@@ -15,6 +16,44 @@ export interface YtDlpOptions {
   };
   filenameHint?: string;
   format?: string;
+}
+
+type YtDlpErrorCode = 'VIDEO_UNAVAILABLE' | 'NETWORK_ERROR' | 'FORMAT_ERROR';
+
+interface YtDlpError extends Error {
+  code: YtDlpErrorCode;
+  stderr?: string;
+}
+
+function isExecaError(error: unknown): error is ExecaError<string> {
+  return Boolean(
+    error &&
+    typeof error === 'object' &&
+    'stderr' in error &&
+    'failed' in error
+  );
+}
+
+function parseYtDlpErrorCode(stderr: string): YtDlpErrorCode | undefined {
+  if (stderr.includes('Video unavailable')) {
+    return 'VIDEO_UNAVAILABLE';
+  }
+  if (stderr.includes('network')) {
+    return 'NETWORK_ERROR';
+  }
+  if (stderr.includes('format')) {
+    return 'FORMAT_ERROR';
+  }
+  return undefined;
+}
+
+function createYtDlpError(error: ExecaError<string>, code: YtDlpErrorCode): YtDlpError {
+  const customError = new Error(error.message) as YtDlpError;
+  customError.name = error.name;
+  customError.stack = error.stack;
+  customError.stderr = error.stderr ?? undefined;
+  customError.code = code;
+  return customError;
 }
 
 export class YtDlpDownloader {
@@ -63,6 +102,7 @@ export class YtDlpDownloader {
     }
     if (headers?.extra) {
       for (const [key, value] of Object.entries(headers.extra)) {
+        if (!value) continue;
         args.push('--add-header', `${key}:${value}`);
       }
     }
@@ -72,13 +112,13 @@ export class YtDlpDownloader {
     this.logger.info(`Starting yt-dlp download: ${this.ytdlpPath} ${args.join(' ')}`);
 
     try {
-      const subprocess = execa(this.ytdlpPath, args, {
+      const subprocess: ExecaChildProcess<string> = execa(this.ytdlpPath, args, {
         cwd: outputDir,
         timeout: parseInt(process.env.JOB_TIMEOUT || '7200000'), // 2 hours
       });
 
       // Parse progress from stderr
-      let jobId: string | undefined;
+      const jobId = `yt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       subprocess.stderr?.on('data', (data) => {
         const lines = data.toString().split('\n');
         for (const line of lines) {
@@ -86,7 +126,7 @@ export class YtDlpDownloader {
         }
       });
 
-      const result = await subprocess;
+      await subprocess;
 
       // Find the downloaded file
       const files = await fs.readdir(outputDir);
@@ -108,17 +148,14 @@ export class YtDlpDownloader {
       };
 
     } catch (error) {
-      this.logger.error('yt-dlp download failed:', error instanceof Error ? error.message : String(error));
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`yt-dlp download failed: ${errorMessage}`);
 
-      // Extract more specific error info
-      if (error && typeof error === 'object' && 'stderr' in error) {
-        const stderr = String((error as any).stderr);
-        if (stderr.includes('Video unavailable')) {
-          (error as any).code = 'VIDEO_UNAVAILABLE';
-        } else if (stderr.includes('network')) {
-          (error as any).code = 'NETWORK_ERROR';
-        } else if (stderr.includes('format')) {
-          (error as any).code = 'FORMAT_ERROR';
+      if (isExecaError(error)) {
+        const stderr = error.stderr ?? '';
+        const code = parseYtDlpErrorCode(stderr);
+        if (code) {
+          throw createYtDlpError(error, code);
         }
       }
 
