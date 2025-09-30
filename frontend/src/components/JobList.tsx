@@ -25,7 +25,7 @@ export function JobList({ activeJobs, onJobUpdate }: JobListProps) {
         limit: 20,
         ...filters,
       }),
-    refetchInterval: 5000, // Refetch every 5 seconds
+    refetchInterval: 2000, // Refetch every 2 seconds for better responsiveness
   });
 
   const handleFilterChange = (field: keyof typeof filters, value: string) => {

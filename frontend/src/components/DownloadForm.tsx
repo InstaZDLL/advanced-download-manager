@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import type { CreateDownloadRequest } from '@/types';
 
@@ -8,12 +8,14 @@ interface DownloadFormProps {
 }
 
 export function DownloadForm({ onJobCreated }: DownloadFormProps) {
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState<CreateDownloadRequest>({
     url: '',
     type: 'auto',
   });
 
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const createDownloadMutation = useMutation({
     mutationFn: api.createDownload,
@@ -21,6 +23,13 @@ export function DownloadForm({ onJobCreated }: DownloadFormProps) {
       onJobCreated(response.jobId);
       setFormData({ url: '', type: 'auto' });
       setShowAdvanced(false);
+
+      // Immediately refetch downloads list
+      queryClient.invalidateQueries({ queryKey: ['downloads'] });
+
+      // Show success message
+      setSuccessMessage(`Download added successfully! (ID: ${response.jobId.slice(0, 8)}...)`);
+      setTimeout(() => setSuccessMessage(null), 3000);
     },
   });
 
@@ -211,6 +220,15 @@ export function DownloadForm({ onJobCreated }: DownloadFormProps) {
           {createDownloadMutation.isPending ? 'Adding...' : 'Add Download'}
         </button>
       </div>
+
+      {/* Success Message */}
+      {successMessage && (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+          <p className="text-sm text-green-600">
+            ✓ {successMessage}
+          </p>
+        </div>
+      )}
 
       {/* Error Display */}
       {createDownloadMutation.error && (

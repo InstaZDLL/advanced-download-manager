@@ -16,7 +16,20 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const [activeJobs, setActiveJobs] = useState(new Set<string>());
-  const { connected, lastMessage } = useWebSocket('http://localhost:3000');
+  const { connected, lastMessage, joinJob, leaveJob } = useWebSocket('http://localhost:3000');
+
+  // Auto-join active jobs WebSocket rooms
+  useEffect(() => {
+    activeJobs.forEach(jobId => {
+      joinJob(jobId);
+    });
+
+    return () => {
+      activeJobs.forEach(jobId => {
+        leaveJob(jobId);
+      });
+    };
+  }, [activeJobs, joinJob, leaveJob]);
 
   useEffect(() => {
     if (lastMessage) {
