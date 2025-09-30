@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  backend:
+    name: Backend (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: adm_db
+          POSTGRES_USER: adm_user
+          POSTGRES_PASSWORD: adm_password
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U adm_user -d adm_db" \
+          --health-interval 10s \
+          --health-timeout 5s \
+          --health-retries 5
+      redis:
+        image: redis:8-alpine
+        ports:
+          - "6379:6379"
+        options: >-
+          --health-cmd "redis-cli ping" \
+          --health-interval 10s \
+          --health-timeout 5s \
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://adm_user:adm_password@localhost:5432/adm_db?schema=public
+      SOCKET_IO_PATH: /socket.io
+      SIO_USE_REDIS: "false"
+      WORKER_TOKEN: test-worker-token
+      WS_URL: http://localhost:3000
+      JOB_TIMEOUT: "60000"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install root deps
+        run: npm ci
+
+      - name: Install backend deps
+        run: cd backend && npm ci
+
+      - name: Lint (backend)
+        run: cd backend && npm run lint
+
+      - name: Typecheck (backend)
+        run: cd backend && npm run typecheck
+
+      - name: Test (backend)
+        run: cd backend && npm test
+
+  frontend:
+    name: Frontend (lint, build)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Install frontend deps
+        run: cd frontend && npm ci
+
+      - name: Lint (frontend)
+        run: cd frontend && npm run lint
+
+      - name: Build (frontend)
+        run: cd frontend && npm run build
+
+  e2e:
+    name: E2E live (optional)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: adm_db
+          POSTGRES_USER: adm_user
+          POSTGRES_PASSWORD: adm_password
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U adm_user -d adm_db" \
+          --health-interval 10s \
+          --health-timeout 5s \
+          --health-retries 5
+      redis:
+        image: redis:8-alpine
+        ports:
+          - "6379:6379"
+        options: >-
+          --health-cmd "redis-cli ping" \
+          --health-interval 10s \
+          --health-timeout 5s \
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://adm_user:adm_password@localhost:5432/adm_db?schema=public
+      SOCKET_IO_PATH: /socket.io
+      SIO_USE_REDIS: "false"
+      WORKER_TOKEN: test-worker-token
+      WS_URL: http://localhost:3000
+      JOB_TIMEOUT: "120000"
+      E2E_TEST_URL: https://speed.hetzner.de/10MB.bin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+
+      - name: Install deps
+        run: |
+          npm ci
+          cd backend && npm ci
+
+      - name: Build backend
+        run: cd backend && npm run build
+
+      - name: Start API (background)
+        run: cd backend && nohup npm start > api.log 2>&1 &
+
+      - name: Start worker (background)
+        run: cd backend && nohup node dist/worker.js > worker.log 2>&1 &
+
+      - name: Wait for API up
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:3000/health >/dev/null; then
+              echo "API is up"; exit 0; fi; sleep 2; done; echo "API did not start"; cat backend/api.log || true; exit 1
+
+      - name: Run E2E live script
+        run: cd backend && npm run e2e:live

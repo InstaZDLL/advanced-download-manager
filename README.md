@@ -1,5 +1,7 @@
 # Advanced Download Manager (ADM) v1.0.4
 
+[![CI](https://github.com/InstaZDLL/advanced-download-manager/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/InstaZDLL/advanced-download-manager/actions/workflows/ci.yml)
+
 A modern, full-featured download manager built with React 19, NestJS, and TypeScript. Supports YouTube downloads, HLS streams, direct file downloads, and transcoding with real-time progress updates.
 
 ## Features

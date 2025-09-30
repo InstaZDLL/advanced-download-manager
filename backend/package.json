@@ -12,6 +12,7 @@
     "worker": "nodemon --watch src --ext ts --exec \"npm run build && node dist/worker.js\"",
     "lint": "eslint src/**/*.ts",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "e2e:live": "tsx ./scripts/e2e-live.ts",
     "typecheck": "tsc -p . --noEmit --pretty",
     "typecheck:watch": "tsc -p . --noEmit --watch --pretty",
     "db:generate": "prisma generate",
