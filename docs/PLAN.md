@@ -69,3 +69,26 @@
 
 - Unit: parseurs de progress (yt-dlp/ffmpeg) et validators payloads WS.
 - E2E: création job → progress live → completion/échec → reconnexion sockets.
+
+## 10) Étapes optionnelles
+
+- Tests d’intégration Gateway
+  - Valider: throttle des écritures DB (`PROGRESS_THROTTLE_MS`), flush sur `completed/failed`, émission aux rooms `job:{jobId}`.
+  - Mock `DownloadsService` et `server.to(room).emit(...)`.
+- Script E2E (manuel)
+  - Script Node qui crée un job (POST /downloads), rejoint la room Socket.IO, affiche `progress/completed/failed`.
+  - Utile pour CI et vérification locale rapide.
+- Monitoring
+  - Métriques Socket.IO (connexions, events/s), fréquence d’updates DB, erreurs.
+  - Healthchecks Redis/Postgres/aria2.
+- CI
+  - Jobs: `npm run lint`, `npm test`, build, éventuellement tests E2E (workflow conditionnel).
+- Adapter Redis (multi-instances)
+  - `SIO_USE_REDIS=true`, installer `@socket.io/redis-adapter` et `ioredis`, config `REDIS_*`.
+  - Tester diffusion multi-nœuds.
+- Sécurité & Secrets
+  - Ne jamais committer `.env` (utiliser `.env.example`). Régénérer `WORKER_TOKEN` en prod.
+- Frontend UX
+  - Toasts déjà présents pour `completed/failed`. Ajuster désactivation polling quand socket healthy.
+- Rollback
+  - Snapshot Postgres. Réduction contrôlée: désactiver Redis adapter, revenir à une instance.
