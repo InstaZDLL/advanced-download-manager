@@ -7,11 +7,13 @@ import type { WebSocketClient } from './websocket-client.js';
 export interface TranscodeOptions {
   inputPath: string;
   outputDir: string;
+  jobId: string;
   options: {
     to?: string;
     codec?: string;
     crf?: number;
   };
+  onProgress?: (update: { progress: number; stage: 'transcode' }) => Promise<void> | void;
 }
 
 export class FfmpegTranscoder {
@@ -25,7 +27,7 @@ export class FfmpegTranscoder {
   }
 
   async transcode(options: TranscodeOptions): Promise<{ filename: string; filepath: string; size?: number }> {
-    const { inputPath, outputDir, options: transcodeOptions } = options;
+    const { inputPath, outputDir, options: transcodeOptions, jobId, onProgress } = options;
 
     const inputFilename = path.basename(inputPath, path.extname(inputPath));
     const outputExt = transcodeOptions.to || 'mp4';
@@ -70,11 +72,10 @@ export class FfmpegTranscoder {
       });
 
       // Parse progress from stderr
-      let jobId: string | undefined;
       subprocess.stderr?.on('data', (data) => {
         const lines = data.toString().split('\n');
         for (const line of lines) {
-          this.parseProgress(line.trim(), duration, jobId);
+          this.parseProgress(line.trim(), duration, jobId, onProgress);
         }
       });
 
@@ -128,7 +129,12 @@ export class FfmpegTranscoder {
     }
   }
 
-  private parseProgress(line: string, totalDuration: number, jobId?: string) {
+  private parseProgress(
+    line: string,
+    totalDuration: number,
+    jobId?: string,
+    onProgress?: (update: { progress: number; stage: 'transcode' }) => Promise<void> | void,
+  ) {
     if (!jobId || !line.startsWith('out_time_ms=')) return;
 
     // Parse ffmpeg progress
@@ -144,6 +150,9 @@ export class FfmpegTranscoder {
         stage: 'transcode',
         progress,
       });
+
+      // Persist progress if callback provided
+      void onProgress?.({ progress, stage: 'transcode' });
     }
   }
 }

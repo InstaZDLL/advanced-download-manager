@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.5] - 2025-09-30
 
+## [1.0.6] - 2025-09-30
+
+### Fixed
+
+- Smooth, accurate download progress for aria2/yt-dlp/ffmpeg
+  - Use real `jobId` instead of aria2 `gid` or random IDs
+  - Persist periodic updates (progress/speed/ETA/size) to DB
+
+### Added
+
+- Live WebSocket relaying from worker to clients
+  - Backend subscribes to worker `progress/completed/failed` events
+  - Broadcasts to `job:{jobId}` rooms for real-time UI updates
+  - Keeps DB in sync while pushing events live
+
 ### Added
 
 - **Retry Functionality**: Complete implementation of job retry feature

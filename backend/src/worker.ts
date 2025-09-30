@@ -125,14 +125,33 @@ class DownloadWorker {
         stage: 'download',
         progress: 0,
       });
+      // Persist stage start
+      await this.db.job.update({
+        where: { id: jobId },
+        data: { stage: 'download', progress: 0, updatedAt: new Date() },
+      });
 
       switch (type) {
         case 'youtube':
           downloadResult = await this.ytdlp.download({
             url,
             outputDir: tempJobDir,
+            jobId,
             headers,
             filenameHint,
+            onProgress: async ({ progress, stage, speed, eta, totalBytes }) => {
+              await this.db.job.update({
+                where: { id: jobId },
+                data: {
+                  progress,
+                  stage,
+                  speed,
+                  eta,
+                  totalBytes: totalBytes != null ? BigInt(totalBytes) : undefined,
+                  updatedAt: new Date(),
+                },
+              });
+            },
           });
           break;
 
@@ -140,9 +159,23 @@ class DownloadWorker {
           downloadResult = await this.ytdlp.download({
             url,
             outputDir: tempJobDir,
+            jobId,
             headers,
             filenameHint,
             format: 'best[ext=mp4]',
+            onProgress: async ({ progress, stage, speed, eta, totalBytes }) => {
+              await this.db.job.update({
+                where: { id: jobId },
+                data: {
+                  progress,
+                  stage,
+                  speed,
+                  eta,
+                  totalBytes: totalBytes != null ? BigInt(totalBytes) : undefined,
+                  updatedAt: new Date(),
+                },
+              });
+            },
           });
           break;
 
@@ -152,8 +185,22 @@ class DownloadWorker {
           downloadResult = await this.aria2.download({
             url,
             outputDir: tempJobDir,
+            jobId,
             headers,
             filenameHint,
+            onProgress: async ({ progress, stage, speed, eta, totalBytes }) => {
+              await this.db.job.update({
+                where: { id: jobId },
+                data: {
+                  progress,
+                  stage,
+                  speed,
+                  eta,
+                  totalBytes: totalBytes != null ? BigInt(totalBytes) : undefined,
+                  updatedAt: new Date(),
+                },
+              });
+            },
           });
           break;
       }
@@ -170,7 +217,14 @@ class DownloadWorker {
         finalFile = await this.ffmpeg.transcode({
           inputPath: downloadResult.filepath,
           outputDir: tempJobDir,
+          jobId,
           options: transcode,
+          onProgress: async ({ progress, stage }) => {
+            await this.db.job.update({
+              where: { id: jobId },
+              data: { progress, stage, updatedAt: new Date() },
+            });
+          },
         });
       }
 

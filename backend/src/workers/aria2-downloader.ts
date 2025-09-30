@@ -6,12 +6,15 @@ import type { WebSocketClient } from './websocket-client.js';
 export interface Aria2Options {
   url: string;
   outputDir: string;
+  jobId: string;
   headers?: {
     ua?: string;
     referer?: string;
     extra?: Record<string, string>;
   };
   filenameHint?: string;
+  // Optional callback to persist progress in DB
+  onProgress?: (update: { progress: number; stage: 'download'; speed?: string; eta?: number; totalBytes?: number }) => Promise<void> | void;
 }
 
 export class Aria2Downloader {
@@ -27,7 +30,7 @@ export class Aria2Downloader {
   }
 
   async download(options: Aria2Options): Promise<{ filename: string; filepath: string; size?: number }> {
-    const { url, outputDir, headers, filenameHint } = options;
+    const { url, outputDir, headers, filenameHint, jobId, onProgress } = options;
 
     // Prepare aria2 options
     const aria2Options: Record<string, string> = {
@@ -67,7 +70,7 @@ export class Aria2Downloader {
       this.logger.info(`Started aria2 download with GID: ${gid}`);
 
       // Monitor progress
-      const result = await this.monitorDownload(gid);
+      const result = await this.monitorDownload(gid, jobId, onProgress);
 
       this.logger.info(`aria2 download completed: ${result.filename} (${result.size} bytes)`);
       return result;
@@ -86,7 +89,11 @@ export class Aria2Downloader {
     return this.rpcCall<string>('aria2.addUri', params);
   }
 
-  private async monitorDownload(gid: string): Promise<{ filename: string; filepath: string; size: number }> {
+  private async monitorDownload(
+    gid: string,
+    jobId: string,
+    onProgress?: (update: { progress: number; stage: 'download'; speed?: string; eta?: number; totalBytes?: number }) => Promise<void> | void,
+  ): Promise<{ filename: string; filepath: string; size: number }> {
     const pollInterval = 2000; // 2 seconds
     const timeout = parseInt(process.env.JOB_TIMEOUT || '7200000'); // 2 hours
     const startTime = Date.now();
@@ -108,13 +115,26 @@ export class Aria2Downloader {
         const eta = downloadSpeed > 0 ? Math.floor((totalLength - completedLength) / downloadSpeed) : undefined;
 
         this.wsClient.emitProgress({
-          jobId: gid, // Using GID as jobId for now
+          jobId,
           stage: 'download',
           progress,
           speed: downloadSpeed > 0 ? `${(downloadSpeed / 1024 / 1024).toFixed(2)}MB/s` : undefined,
           eta,
           totalBytes: totalLength,
         });
+
+        // Persist progress if callback provided
+        try {
+          await onProgress?.({
+            progress,
+            stage: 'download',
+            speed: downloadSpeed > 0 ? `${(downloadSpeed / 1024 / 1024).toFixed(2)}MB/s` : undefined,
+            eta,
+            totalBytes: totalLength,
+          });
+        } catch (e) {
+          this.logger.warn(`Failed to persist progress for job ${jobId}: ${e instanceof Error ? e.message : String(e)}`);
+        }
       }
 
       // Check status

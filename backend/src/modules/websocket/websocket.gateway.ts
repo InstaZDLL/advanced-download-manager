@@ -9,6 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
+import { DownloadsService } from '../downloads/downloads.service.js';
 
 export interface ProgressEvent {
   jobId: string;
@@ -48,7 +49,7 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   private readonly logger = new Logger(WebSocketGateway.name);
 
-  constructor() {}
+  constructor(private downloads: DownloadsService) {}
 
   handleConnection(client: Socket) {
     this.connectedClients.set(client.id, client);
@@ -123,5 +124,76 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       connectedClients: this.connectedClients.size,
       rooms: this.server.sockets.adapter.rooms,
     };
+  }
+}
+
+// Incoming events from worker (bridge to rooms + persist in DB)
+@WSGateway()
+export class WorkerEventsGateway {
+  @WebSocketServer()
+  server!: Server;
+
+  private readonly logger = new Logger('WorkerEventsGateway');
+
+  constructor(private downloads: DownloadsService) {}
+
+  @SubscribeMessage('progress')
+  async handleProgress(@MessageBody() event: ProgressEvent) {
+    try {
+      await this.downloads.updateJobProgress(
+        event.jobId,
+        event.progress,
+        event.stage,
+        event.speed,
+        event.eta,
+        event.totalBytes != null ? BigInt(event.totalBytes) : undefined,
+      );
+    } catch (e) {
+      this.logger.warn(`DB update failed for progress ${event.jobId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    const room = `job:${event.jobId}`;
+    this.server.to(room).emit('progress', event);
+  }
+
+  @SubscribeMessage('completed')
+  async handleCompleted(@MessageBody() event: CompletedEvent) {
+    try {
+      await this.downloads.setJobCompleted(event.jobId, event.filename, event.outputPath, event.size);
+    } catch (e) {
+      this.logger.warn(`DB update failed for completed ${event.jobId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    const room = `job:${event.jobId}`;
+    this.server.to(room).emit('completed', event);
+  }
+
+  @SubscribeMessage('failed')
+  async handleFailed(@MessageBody() event: FailedEvent) {
+    try {
+      await this.downloads.updateJobStatus(event.jobId, 'failed', event.errorCode, event.message);
+    } catch (e) {
+      this.logger.warn(`DB update failed for failed ${event.jobId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    const room = `job:${event.jobId}`;
+    this.server.to(room).emit('failed', event);
+  }
+
+  @SubscribeMessage('job-update')
+  async handleJobUpdate(@MessageBody() data: { jobId: string; status?: string; stage?: string; progress?: number }) {
+    try {
+      if (data.status) {
+        await this.downloads.updateJobStatus(data.jobId, data.status);
+      }
+      if (data.stage != null || data.progress != null) {
+        await this.downloads.updateJobProgress(
+          data.jobId,
+          data.progress ?? 0,
+          data.stage,
+        );
+      }
+    } catch (e) {
+      this.logger.warn(`DB update failed for job-update ${data.jobId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    const room = `job:${data.jobId}`;
+    this.server.to(room).emit('job-update', data);
   }
 }

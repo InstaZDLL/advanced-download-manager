@@ -9,6 +9,7 @@ import type { WebSocketClient } from './websocket-client.js';
 export interface YtDlpOptions {
   url: string;
   outputDir: string;
+  jobId: string;
   headers?: {
     ua?: string;
     referer?: string;
@@ -16,6 +17,7 @@ export interface YtDlpOptions {
   };
   filenameHint?: string;
   format?: string;
+  onProgress?: (update: { progress: number; stage: 'download'; speed?: string; eta?: number; totalBytes?: number }) => Promise<void> | void;
 }
 
 type YtDlpErrorCode = 'VIDEO_UNAVAILABLE' | 'NETWORK_ERROR' | 'FORMAT_ERROR';
@@ -67,7 +69,7 @@ export class YtDlpDownloader {
   }
 
   async download(options: YtDlpOptions): Promise<{ filename: string; filepath: string; size?: number }> {
-    const { url, outputDir, headers, filenameHint, format } = options;
+    const { url, outputDir, headers, filenameHint, format, jobId, onProgress } = options;
 
     // Build yt-dlp command
     const args = [
@@ -118,11 +120,10 @@ export class YtDlpDownloader {
       });
 
       // Parse progress from stderr
-      const jobId = `yt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       subprocess.stderr?.on('data', (data) => {
         const lines = data.toString().split('\n');
         for (const line of lines) {
-          this.parseProgress(line.trim(), jobId);
+          this.parseProgress(line.trim(), jobId, onProgress);
         }
       });
 
@@ -163,7 +164,11 @@ export class YtDlpDownloader {
     }
   }
 
-  private parseProgress(line: string, jobId?: string) {
+  private parseProgress(
+    line: string,
+    jobId?: string,
+    onProgress?: (update: { progress: number; stage: 'download'; speed?: string; eta?: number; totalBytes?: number }) => Promise<void> | void,
+  ) {
     if (!jobId) return;
 
     // Parse yt-dlp progress line
@@ -185,6 +190,9 @@ export class YtDlpDownloader {
         speed,
         eta,
       });
+
+      // Persist progress if callback provided
+      void onProgress?.({ progress, stage: 'download', speed, eta });
     }
 
     // Parse size info
@@ -207,6 +215,9 @@ export class YtDlpDownloader {
         progress: 0,
         totalBytes: Math.floor(bytes),
       });
+
+      // Persist known total if callback provided (do not change progress here)
+      void onProgress?.({ progress: 0, stage: 'download', totalBytes: Math.floor(bytes) });
     }
   }
 }
