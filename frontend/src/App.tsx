@@ -16,7 +16,18 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const [activeJobs, setActiveJobs] = useState(new Set<string>());
-  const { connected, lastMessage, joinJob, leaveJob } = useWebSocket('http://localhost:3000');
+  const { connected, lastMessage, joinJob, leaveJob } = useWebSocket((import.meta.env.VITE_API_URL as string) || 'http://localhost:3000');
+
+  // Simple toast notifications
+  const [toasts, setToasts] = useState<Array<{ id: string; type: 'success' | 'error'; message: string }>>([]);
+  const pushToast = (t: { id: string; type: 'success' | 'error'; message: string }) => {
+    setToasts(prev => [...prev, t]);
+    // auto-dismiss after 5s
+    setTimeout(() => {
+      setToasts(prev => prev.filter(x => x.id !== t.id));
+    }, 5000);
+  };
+  const dismissToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
 
   // Auto-join active jobs WebSocket rooms
   useEffect(() => {
@@ -35,6 +46,16 @@ function AppContent() {
     if (lastMessage) {
       // Handle WebSocket messages to update job list
       queryClient.invalidateQueries({ queryKey: ['downloads'] });
+
+      // Toasts for terminal events
+      if (lastMessage.type === 'completed') {
+        const d = lastMessage.data as { jobId: string; filename: string };
+        pushToast({ id: `ok-${d.jobId}`, type: 'success', message: `Terminé: ${d.filename}` });
+      }
+      if (lastMessage.type === 'failed') {
+        const d = lastMessage.data as { jobId: string; message: string };
+        pushToast({ id: `ko-${d.jobId}`, type: 'error', message: `Échec: ${d.message}` });
+      }
     }
   }, [lastMessage]);
 
@@ -43,6 +64,29 @@ function AppContent() {
       <Header connected={connected} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Toasts */}
+        {toasts.length > 0 && (
+          <div className="fixed top-4 right-4 z-50 space-y-2">
+            {toasts.map(t => (
+              <div
+                key={t.id}
+                className={`flex items-start max-w-sm rounded-md shadow-lg border px-4 py-3 bg-white ${t.type === 'success' ? 'border-green-300' : 'border-red-300'}`}
+              >
+                <div className={`mt-0.5 mr-2 text-sm ${t.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                  {t.type === 'success' ? '✔' : '✖'}
+                </div>
+                <div className="text-sm text-gray-800">{t.message}</div>
+                <button
+                  onClick={() => dismissToast(t.id)}
+                  className="ml-3 text-gray-400 hover:text-gray-600"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="space-y-8">
           {/* Download Form */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

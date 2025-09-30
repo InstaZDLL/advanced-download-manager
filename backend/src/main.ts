@@ -17,8 +17,8 @@ async function bootstrap() {
 
   // Configure Socket.IO adapter
   const socketIOAdapter = new SocketIOAdapter(app);
-  // Skip Redis connection for now to avoid dependency issues
-  // await socketIOAdapter.connectToRedis();
+  // Se connecte à Redis pour diffusion inter-nœuds si SIO_USE_REDIS est activé
+  await socketIOAdapter.connectToRedis();
   app.useWebSocketAdapter(socketIOAdapter);
 
   // Global validation pipe with Zod
