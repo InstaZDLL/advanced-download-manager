@@ -5,14 +5,13 @@ import {
   Param,
   Body,
   Query,
-  UseGuards,
   HttpCode,
   HttpStatus,
   UsePipes,
 } from '@nestjs/common';
 import { DownloadsService } from './downloads.service.js';
-import { ApiKeyGuard } from '../../shared/guards/api-key.guard.js';
-import { CreateDownloadDto, CreateDownloadSchema, JobActionDto, JobActionSchema } from '../../shared/dto/download.dto.js';
+import type { CreateDownloadDto } from '../../shared/dto/download.dto.js';
+import { CreateDownloadSchema } from '../../shared/dto/download.dto.js';
 import { ZodValidationPipe } from '../../shared/pipes/zod-validation.pipe.js';
 
 @Controller('downloads')

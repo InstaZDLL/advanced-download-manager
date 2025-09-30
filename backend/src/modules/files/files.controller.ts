@@ -6,7 +6,7 @@ import {
   UseGuards,
   Header,
 } from '@nestjs/common';
-import { FastifyReply } from 'fastify';
+import type { FastifyReply } from 'fastify';
 import { FilesService } from './files.service.js';
 import { ApiKeyGuard, Public } from '../../shared/guards/api-key.guard.js';
 import * as fs from 'fs';
@@ -37,7 +37,7 @@ export class FilesController {
 
     const stream = fs.createReadStream(fileInfo.filepath);
 
-    stream.on('error', (error) => {
+    stream.on('error', (_err: NodeJS.ErrnoException | Error) => {
       reply.code(500).send({ error: 'Failed to stream file' });
     });
 
