@@ -44,3 +44,26 @@ This repo hosts Advanced Download Manager (ADM), a TypeScript monorepo with a Ne
 - Configure CORS via `ALLOWED_ORIGINS`; secure write actions with `API_KEY`.
 - Required tools for full functionality: Redis, aria2, ffmpeg, yt-dlp (see README).
 
+## MCP Tools
+
+In this project, Codex is connected to several **MCP (Model Context Protocol)** servers. These tools extend Codex’s abilities beyond simple text generation.
+
+### Context7
+
+**Purpose**: to inject up-to-date documentation and code examples into the prompt context.  
+**Usage**: by prefixing a prompt with `use context7`, Codex can fetch the latest official docs for libraries/frameworks, reducing API hallucinations or outdated references.
+
+### Brave Search
+
+**Purpose**: to give Codex real-time web search capability via the Brave Search API.  
+**Usage**: when a prompt requires looking up live information (web pages, news, images), Codex can call the Brave Search server to get fresh results and summaries.
+
+### Git
+
+**Purpose**: allow Codex to interact with a Git repository (e.g. read history, fetch files, compare versions).  
+**Usage**: with a Git MCP server, Codex can suggest commits, patches, merges, or read code context from your repo.
+
+### Time
+
+**Purpose**: provide Codex with a notion of real time (dates, clock, time zones).  
+**Usage**: using a Time or Clock MCP server, Codex can answer questions such as “What time is it now in Tokyo?”, “What day will it be in 72 hours?”, etc.
