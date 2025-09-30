@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.5] - 2025-09-30
 
+## [1.0.7] - 2025-09-30
+
+### Added
+
+- Base de données **PostgreSQL** (prod) avec Prisma
+  - Passage du provider Prisma `sqlite` → `postgresql`
+  - Nouvelle migration initiale `init_postgres`
+- Architecture **serveur seul writer** pour la progression
+  - Le worker n’écrit plus en DB; il émet uniquement des events WebSocket (`progress/completed/failed/job-update`)
+  - Le backend persiste en DB (throttle configurable) et rediffuse aux clients
+- **Namespaces Socket.IO** séparés
+  - UI sur le namespace par défaut avec rooms `job:{jobId}`
+  - Worker sur le namespace privé `/worker` (authentifié par token)
+- **Throttle** des écritures DB de progression (par défaut 300 ms via `PROGRESS_THROTTLE_MS`)
+- **Option adapter Redis** pour Socket.IO (multi‑instances)
+  - Activable via `SIO_USE_REDIS=true`; fallback en mémoire si non installé
+- Frontend: **toasts** de fin (succès/échec) en temps réel
+
+### Changed
+
+- Frontend: polling conditionnel de la liste des jobs
+  - Polling désactivé quand le WebSocket est connecté; fallback 2s si déconnecté
+- Docker: Postgres mis à jour vers `postgres:18-alpine`
+  - Healthcheck amélioré; volume nommé `postgres_data` (par défaut)
+  - Suppression de `PGDATA` pour éviter des erreurs de permissions/chemins
+- Worker: chargement automatique de `backend/.env` via `import 'dotenv/config'`
+- Client WS du worker: connexion vers `/worker` avec `auth: { token: WORKER_TOKEN }` et `SOCKET_IO_PATH`
+- Documentation d’architecture: `docs/PLAN.md` remplacé par la version “serveur seul writer + PostgreSQL”
+
+### Fixed
+
+- Erreurs de permission/démarrage Postgres liées à des chemins de données
+- Double écriture DB (worker + serveur) remplacée par une source unique (serveur)
+
+### Security
+
+- Sécurisation du canal worker → backend par **token** (`WORKER_TOKEN`) sur le namespace privé `/worker`
+- Rappel: ne jamais committer de secrets; utiliser des fichiers `.env.example`
+
+### Configuration
+
+- Backend `.env`:
+  - `DATABASE_URL`, `SOCKET_IO_PATH`, `SIO_TRANSPORTS`, `SIO_USE_REDIS`
+  - `WORKER_TOKEN`, `WS_URL`, `PROGRESS_THROTTLE_MS`
+  - `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` (si nécessaire)
+- Frontend `.env.example`:
+  - `VITE_API_URL`, `VITE_SOCKET_IO_PATH`
+
 ## [1.0.6] - 2025-09-30
 
 ### Fixed
