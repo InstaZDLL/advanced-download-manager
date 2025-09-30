@@ -24,11 +24,7 @@ export class DownloadsController {
   @HttpCode(HttpStatus.CREATED)
   @UsePipes(new ZodValidationPipe(CreateDownloadSchema))
   async createDownload(@Body() dto: CreateDownloadDto) {
-    // Temporary test response
-    const jobId = `test-${Date.now()}`;
-    console.log('Create download request:', dto);
-    return { jobId };
-    // return this.downloadsService.createDownload(dto);
+    return this.downloadsService.createDownload(dto);
   }
 
   @Get()
@@ -39,23 +35,13 @@ export class DownloadsController {
     @Query('type') type?: string,
     @Query('search') search?: string,
   ) {
-    // Temporary test response
-    return {
-      jobs: [],
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: 0,
-        pages: 0,
-      },
-    };
-    // return this.downloadsService.listDownloads(
-    //   parseInt(page),
-    //   parseInt(limit),
-    //   status,
-    //   type,
-    //   search,
-    // );
+    return this.downloadsService.listDownloads(
+      parseInt(page),
+      parseInt(limit),
+      status,
+      type,
+      search,
+    );
   }
 
   @Get(':jobId')
