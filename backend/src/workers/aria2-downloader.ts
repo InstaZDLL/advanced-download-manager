@@ -106,32 +106,12 @@ export class Aria2Downloader {
       const status = await this.getDownloadStatus(gid);
 
       // Update progress
-      const totalLength = parseInt(status.totalLength || '0');
-      const completedLength = parseInt(status.completedLength || '0');
-      const downloadSpeed = parseInt(status.downloadSpeed || '0');
-
-      if (totalLength > 0) {
-        const progress = (completedLength / totalLength) * 100;
-        const eta = downloadSpeed > 0 ? Math.floor((totalLength - completedLength) / downloadSpeed) : undefined;
-
-        this.wsClient.emitProgress({
-          jobId,
-          stage: 'download',
-          progress,
-          speed: downloadSpeed > 0 ? `${(downloadSpeed / 1024 / 1024).toFixed(2)}MB/s` : undefined,
-          eta,
-          totalBytes: totalLength,
-        });
-
-        // Persist progress if callback provided
+      const metrics = computeAria2Progress(status);
+      if (metrics) {
+        const { progress, eta, totalBytes, speed } = metrics;
+        this.wsClient.emitProgress({ jobId, stage: 'download', progress, eta, totalBytes, speed });
         try {
-          await onProgress?.({
-            progress,
-            stage: 'download',
-            speed: downloadSpeed > 0 ? `${(downloadSpeed / 1024 / 1024).toFixed(2)}MB/s` : undefined,
-            eta,
-            totalBytes: totalLength,
-          });
+          await onProgress?.({ progress, stage: 'download', eta, totalBytes, speed });
         } catch (e) {
           this.logger.warn(`Failed to persist progress for job ${jobId}: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -208,7 +188,7 @@ interface Aria2FileEntry {
   path: string;
 }
 
-interface Aria2Status {
+export interface Aria2Status {
   status: 'active' | 'waiting' | 'paused' | 'error' | 'complete' | 'removed';
   totalLength: string;
   completedLength: string;
@@ -231,4 +211,18 @@ interface Aria2RpcResponse<T> {
   error?: {
     message: string;
   };
+}
+
+export function computeAria2Progress(status: Aria2Status): { progress: number; eta?: number; totalBytes: number; speed?: string } | null {
+  const totalLength = parseInt(status.totalLength || '0');
+  const completedLength = parseInt(status.completedLength || '0');
+  const downloadSpeedNum = parseInt((status.downloadSpeed as string | undefined) || '0');
+
+  if (Number.isNaN(totalLength) || totalLength <= 0) return null;
+  if (Number.isNaN(completedLength) || completedLength < 0) return null;
+
+  const progress = (completedLength / totalLength) * 100;
+  const eta = downloadSpeedNum > 0 ? Math.floor((totalLength - completedLength) / downloadSpeedNum) : undefined;
+  const speed = downloadSpeedNum > 0 ? `${(downloadSpeedNum / 1024 / 1024).toFixed(2)}MB/s` : undefined;
+  return { progress, eta, totalBytes: totalLength, speed };
 }

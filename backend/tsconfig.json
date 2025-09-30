@@ -15,7 +15,8 @@
     },
 
     "strict": true,
-    "types": ["node"],
+    "types": ["node", "jest"],
+    "isolatedModules": true,
     "useDefineForClassFields": false,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,

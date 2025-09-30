@@ -20,6 +20,48 @@ export interface YtDlpOptions {
   onProgress?: (update: { progress: number; stage: 'download'; speed?: string; eta?: number; totalBytes?: number }) => Promise<void> | void;
 }
 
+export function parseYtDlpProgressLine(line: string): { progress: number; speed?: string; eta?: number; totalBytes?: number } | null {
+  // Example: "[download]  15.2% of 234.56MiB at 1.23MiB/s ETA 02:34"
+  const progressMatch = line.match(/\[download\]\s+(\d+(?:\.\d+)?)%.*?at\s+([^\s]+)\s+ETA\s+(\d{1,2}:(?:\d{2})(?::\d{2})?)/);
+
+  let progress: number | undefined;
+  let speed: string | undefined;
+  let eta: number | undefined;
+  let totalBytes: number | undefined;
+
+  if (progressMatch) {
+    progress = parseFloat(progressMatch[1]);
+    speed = progressMatch[2];
+    const etaStr = progressMatch[3];
+    const parts = etaStr.split(':').map(Number);
+    if (parts.length === 3) {
+      eta = parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2) {
+      eta = parts[0] * 60 + parts[1];
+    }
+  }
+
+  // Parse optional size info present in the same line or standalone size line
+  const sizeMatch = line.match(/of\s+([0-9.]+)\s*([KMGT]?)iB/i);
+  if (sizeMatch) {
+    const size = parseFloat(sizeMatch[1]);
+    const unit = (sizeMatch[2] || '').toUpperCase();
+    let bytes = size;
+    switch (unit) {
+      case 'K': bytes *= 1024; break;
+      case 'M': bytes *= 1024 * 1024; break;
+      case 'G': bytes *= 1024 * 1024 * 1024; break;
+      case 'T': bytes *= 1024 * 1024 * 1024 * 1024; break;
+    }
+    totalBytes = Math.floor(bytes);
+  }
+
+  if (progress != null || totalBytes != null) {
+    return { progress: progress ?? 0, speed, eta, totalBytes };
+  }
+  return null;
+}
+
 type YtDlpErrorCode = 'VIDEO_UNAVAILABLE' | 'NETWORK_ERROR' | 'FORMAT_ERROR';
 
 interface YtDlpError extends Error {
@@ -36,7 +78,7 @@ function isExecaError(error: unknown): error is ExecaError<string> {
   );
 }
 
-function parseYtDlpErrorCode(stderr: string): YtDlpErrorCode | undefined {
+export function parseYtDlpErrorCode(stderr: string): YtDlpErrorCode | undefined {
   if (stderr.includes('Video unavailable')) {
     return 'VIDEO_UNAVAILABLE';
   }
@@ -171,53 +213,11 @@ export class YtDlpDownloader {
   ) {
     if (!jobId) return;
 
-    // Parse yt-dlp progress line
-    // Example: "[download]  15.2% of 234.56MiB at 1.23MiB/s ETA 02:34"
-    const progressMatch = line.match(/\[download\]\s+(\d+(?:\.\d+)?)%.*?at\s+([^\s]+)\s+ETA\s+(\d+:\d+)/);
-    if (progressMatch) {
-      const progress = parseFloat(progressMatch[1]);
-      const speed = progressMatch[2];
-      const etaStr = progressMatch[3];
-
-      // Convert ETA to seconds
-      const [minutes, seconds] = etaStr.split(':').map(Number);
-      const eta = minutes * 60 + seconds;
-
-      this.wsClient.emitProgress({
-        jobId,
-        stage: 'download',
-        progress,
-        speed,
-        eta,
-      });
-
-      // Persist progress if callback provided
-      void onProgress?.({ progress, stage: 'download', speed, eta });
-    }
-
-    // Parse size info
-    const sizeMatch = line.match(/of\s+([0-9.]+)([KMGT]?)iB/);
-    if (sizeMatch && jobId) {
-      const size = parseFloat(sizeMatch[1]);
-      const unit = sizeMatch[2] || '';
-
-      let bytes = size;
-      switch (unit) {
-        case 'K': bytes *= 1024; break;
-        case 'M': bytes *= 1024 * 1024; break;
-        case 'G': bytes *= 1024 * 1024 * 1024; break;
-        case 'T': bytes *= 1024 * 1024 * 1024 * 1024; break;
-      }
-
-      this.wsClient.emitProgress({
-        jobId,
-        stage: 'download',
-        progress: 0,
-        totalBytes: Math.floor(bytes),
-      });
-
-      // Persist known total if callback provided (do not change progress here)
-      void onProgress?.({ progress: 0, stage: 'download', totalBytes: Math.floor(bytes) });
+    const parsed = parseYtDlpProgressLine(line);
+    if (parsed) {
+      const { progress, speed, eta, totalBytes } = parsed;
+      this.wsClient.emitProgress({ jobId, stage: 'download', progress, speed, eta, totalBytes });
+      void onProgress?.({ progress, stage: 'download', speed, eta, totalBytes });
     }
   }
 }

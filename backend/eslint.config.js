@@ -12,7 +12,7 @@ export default [
 
   // TypeScript configuration for Node.js
   ...tseslint.config({
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'src/**/*.tsx', 'src/**/__tests__/**/*.ts', 'src/**/*.spec.ts'],
     extends: [
       ...tseslint.configs.recommended,
       ...tseslint.configs.stylistic,
@@ -24,7 +24,7 @@ export default [
         ...globals.node,
       },
       parserOptions: {
-        project: true,
+        project: './tsconfig.eslint.json',
         tsconfigRootDir: import.meta.dirname,
       },
     },

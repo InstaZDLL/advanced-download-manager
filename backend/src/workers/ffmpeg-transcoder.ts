@@ -135,24 +135,23 @@ export class FfmpegTranscoder {
     jobId?: string,
     onProgress?: (update: { progress: number; stage: 'transcode' }) => Promise<void> | void,
   ) {
-    if (!jobId || !line.startsWith('out_time_ms=')) return;
+    if (!jobId) return;
 
-    // Parse ffmpeg progress
-    // Example: "out_time_ms=12345678"
-    const timeMatch = line.match(/out_time_ms=(\d+)/);
-    if (timeMatch && totalDuration > 0) {
-      const currentTimeMs = parseInt(timeMatch[1]);
-      const currentTimeSeconds = currentTimeMs / 1000000; // microseconds to seconds
-      const progress = Math.min((currentTimeSeconds / totalDuration) * 100, 100);
-
-      this.wsClient.emitProgress({
-        jobId,
-        stage: 'transcode',
-        progress,
-      });
-
-      // Persist progress if callback provided
+    const progress = parseFfmpegOutTimeMs(line, totalDuration);
+    if (progress != null) {
+      this.wsClient.emitProgress({ jobId, stage: 'transcode', progress });
       void onProgress?.({ progress, stage: 'transcode' });
     }
   }
+}
+
+export function parseFfmpegOutTimeMs(line: string, totalDuration: number): number | null {
+  if (!line.startsWith('out_time_ms=')) return null;
+  if (totalDuration <= 0) return null;
+  const match = line.match(/out_time_ms=(\d+)/);
+  if (!match) return null;
+  const currentTimeMs = parseInt(match[1]);
+  const currentTimeSeconds = currentTimeMs / 1_000_000; // microseconds → seconds
+  const pct = Math.min((currentTimeSeconds / totalDuration) * 100, 100);
+  return pct;
 }

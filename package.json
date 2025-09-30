@@ -24,6 +24,7 @@
     "check:services": "echo 'Redis:' && (pgrep redis-server > /dev/null && echo '✅ Running' || echo '❌ Not running') && echo 'aria2:' && (pgrep aria2c > /dev/null && echo '✅ Running' || echo '❌ Not running')"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "concurrently": "^8.2.2",
     "typescript": "^5.9.2"
   }
