@@ -78,6 +78,12 @@ export const api = {
     });
   },
 
+  retryDownload: async (jobId: string): Promise<{ success: boolean }> => {
+    return apiRequest(`/downloads/${jobId}/retry`, {
+      method: 'POST',
+    });
+  },
+
   // Files
   getFileMetadata: async (jobId: string) => {
     return apiRequest(`/files/${jobId}`);

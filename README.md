@@ -163,6 +163,28 @@ npm run dev
 
 Press `Ctrl+C` to stop all servers cleanly.
 
+### Production Deployment
+
+To run in production mode:
+
+```bash
+# 1. Build everything
+npm run build
+
+# 2. Start Docker services (Redis, etc.)
+cd docker && docker-compose up -d
+
+# 3. Start backend + worker
+npm start
+
+# 4. Serve frontend (choose one option)
+# Option 1: Simple server
+npx serve frontend/dist -p 5173
+
+# Option 2: Nginx (recommended for production)
+# Configure nginx to serve frontend/dist and proxy /api to localhost:3000
+```
+
 ## Configuration
 
 ### Environment Variables
@@ -183,7 +205,7 @@ ALLOWED_ORIGINS=http://localhost:5173
 
 # External Tools
 ARIA2_RPC_URL=http://localhost:6800/jsonrpc
-ARIA2_SECRET=your-aria2-secret
+ARIA2_SECRET=5eYu4XrI4E4c/IgcnK1qeGSNxfxB3cTaZTLkNl6C2+0=
 YTDLP_PATH=yt-dlp
 FFMPEG_PATH=ffmpeg
 
@@ -233,9 +255,10 @@ GET /downloads?page=1&limit=20&status=running&type=youtube&search=query
 #### Job Actions
 
 ```bash
-POST /downloads/{jobId}/cancel
-POST /downloads/{jobId}/pause
-POST /downloads/{jobId}/resume
+POST /downloads/{jobId}/cancel   # Cancel a running or queued job
+POST /downloads/{jobId}/pause    # Pause a running job (limited support)
+POST /downloads/{jobId}/resume   # Resume a paused job (limited support)
+POST /downloads/{jobId}/retry    # Retry a failed or cancelled job
 ```
 
 ### Files
@@ -312,7 +335,8 @@ ADM/
 
 **Global (Monorepo)**:
 
-- `npm run dev` - Start all services (recommended)
+- `npm run dev` - Start all services in development mode (recommended)
+- `npm start` - Start backend + worker in production mode
 - `npm run typecheck` - Type-check all projects (tsc -b)
 - `npm run typecheck:watch` - Type-check in watch mode
 - `npm run install:all` - Install all dependencies
@@ -321,9 +345,11 @@ ADM/
 
 **Backend**:
 
-- `npm run dev` - Start API server + type-checker in parallel
-- `npm run dev:simple` - Start API server only
-- `npm run worker` - Start worker process
+- `npm run dev` - Start API server + type-checker with nodemon (auto-reload)
+- `npm run dev:simple` - Start API server only with nodemon
+- `npm run worker` - Start worker process with nodemon (auto-reload)
+- `npm run build` - Compile TypeScript to dist/
+- `npm start` - Run compiled backend (production)
 - `npm run typecheck` - Type-check backend only
 - `npm run db:migrate` - Run database migrations
 

@@ -215,6 +215,51 @@ export class DownloadsService {
     this.logger.info(`Resumed job ${jobId}`);
   }
 
+  async retryDownload(jobId: string) {
+    const job = await this.database.job.findUnique({
+      where: { id: jobId },
+    });
+
+    if (!job) {
+      throw new NotFoundException('Job not found');
+    }
+
+    if (job.status !== 'failed' && job.status !== 'cancelled') {
+      throw new BadRequestException('Can only retry failed or cancelled jobs');
+    }
+
+    // Parse stored metadata
+    const transcode = job.meta ? JSON.parse(job.meta) : undefined;
+    const headers = job.headers ? JSON.parse(job.headers) : undefined;
+
+    // Reset job status in database
+    await this.database.job.update({
+      where: { id: jobId },
+      data: {
+        status: 'queued',
+        progress: 0,
+        stage: null,
+        speed: null,
+        eta: null,
+        errorCode: null,
+        errorMessage: null,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Re-add job to queue
+    await this.queue.addDownloadJob({
+      jobId,
+      url: job.url,
+      type: job.type as any,
+      headers,
+      transcode,
+      filenameHint: job.filename || undefined,
+    });
+
+    this.logger.info(`Retrying job ${jobId}`);
+  }
+
   async updateJobProgress(
     jobId: string,
     progress: number,

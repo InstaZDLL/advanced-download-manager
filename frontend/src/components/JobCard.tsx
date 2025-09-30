@@ -33,6 +33,14 @@ export function JobCard({ job, isActive, onUpdate }: JobCardProps) {
     },
   });
 
+  const retryMutation = useMutation({
+    mutationFn: () => api.retryDownload(job.jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['downloads'] });
+      onUpdate();
+    },
+  });
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
@@ -224,13 +232,11 @@ export function JobCard({ job, isActive, onUpdate }: JobCardProps) {
 
           {job.status === 'failed' && (
             <button
-              onClick={() => {
-                // TODO: Implement retry functionality
-                console.warn('Retry job:', job.jobId);
-              }}
-              className="px-3 py-1 text-xs text-blue-700 bg-blue-100 rounded hover:bg-blue-200"
+              onClick={() => retryMutation.mutate()}
+              disabled={retryMutation.isPending}
+              className="px-3 py-1 text-xs text-blue-700 bg-blue-100 rounded hover:bg-blue-200 disabled:opacity-50"
             >
-              Retry
+              {retryMutation.isPending ? 'Retrying...' : 'Retry'}
             </button>
           )}
         </div>

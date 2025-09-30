@@ -5,6 +5,49 @@ All notable changes to the Advanced Download Manager (ADM) project will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2025-09-30
+
+### Added
+
+- **Retry Functionality**: Complete implementation of job retry feature
+  - New endpoint `POST /downloads/:jobId/retry` for retrying failed or cancelled jobs
+  - Frontend "Retry" button with React Query mutation for failed downloads
+  - Backend service method that resets job status and re-adds to queue
+  - Automatic restoration of original job parameters (headers, transcode settings)
+- **Production Start Script**: Added `npm start` command to run backend + worker in production mode
+- **aria2 Configuration**: Added environment variables for aria2 RPC connection
+  - `ARIA2_RPC_URL` for specifying aria2 JSON-RPC endpoint
+  - `ARIA2_SECRET` for secure RPC authentication
+
+### Fixed
+
+- **API Endpoints**: Removed temporary mock responses that were blocking real functionality
+  - Fixed `POST /downloads` to actually create downloads instead of returning test data
+  - Fixed `GET /downloads` to retrieve real jobs from database instead of empty array
+  - Resolved dependency injection issues with `DownloadsService`
+- **Development Server**: Replaced `tsx` with `nodemon` for proper TypeScript decorator support
+  - Fixed `emitDecoratorMetadata` support required for NestJS dependency injection
+  - Added `nodemon.json` configuration for automatic recompilation on file changes
+  - Resolved "Cannot read properties of undefined" errors in controllers
+
+### Security
+
+- **aria2 Secret**: Generated cryptographically secure random secret (Base64, 32 bytes)
+  - Replaced default "dev-secret" with `5eYu4XrI4E4c/IgcnK1qeGSNxfxB3cTaZTLkNl6C2+0=`
+  - Updated both backend `.env` and package.json startup script
+
+### Changed
+
+- **Backend Development**: Modified development workflow to use nodemon for better compatibility
+  - `npm run dev` now compiles TypeScript properly before running
+  - Worker process also uses nodemon for consistent behavior
+  - Real-time recompilation on source file changes
+
+### Documentation
+
+- Updated environment variable documentation for aria2 configuration
+- Added retry endpoint to API documentation
+
 ## [1.0.4] - 2025-09-29
 
 ### Code Quality & Type Safety Improvements

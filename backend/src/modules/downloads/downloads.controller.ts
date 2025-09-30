@@ -69,4 +69,11 @@ export class DownloadsController {
     await this.downloadsService.resumeDownload(jobId);
     return { success: true };
   }
+
+  @Post(':jobId/retry')
+  @HttpCode(HttpStatus.OK)
+  async retryDownload(@Param('jobId') jobId: string) {
+    await this.downloadsService.retryDownload(jobId);
+    return { success: true };
+  }
 }

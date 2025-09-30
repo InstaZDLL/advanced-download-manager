@@ -4,6 +4,7 @@
   "version": "1.0.2",
   "type": "module",
   "scripts": {
+    "start": "concurrently --prefix=\"[{name}]\" --names=\"backend,worker\" --prefix-colors=\"green,yellow\" \"cd backend && npm start\" \"cd backend && node dist/worker.js\"",
     "dev": "node start.js",
     "dev:manual": "concurrently --prefix=\"[{name}]\" --names=\"services,backend,worker,frontend\" --prefix-colors=\"cyan,green,yellow,blue\" \"npm run dev:services\" \"npm run dev:backend\" \"npm run dev:worker\" \"npm run dev:frontend\"",
     "dev:services": "npm run start:redis && npm run start:aria2",
@@ -11,7 +12,7 @@
     "dev:worker": "cd backend && npm run worker",
     "dev:frontend": "cd frontend && npm run dev",
     "start:redis": "redis-server --daemonize yes || echo 'Redis déjà démarré ou non installé'",
-    "start:aria2": "aria2c --enable-rpc --rpc-listen-all=false --rpc-listen-port=6800 --rpc-secret=dev-secret --daemon || echo 'aria2 déjà démarré ou non installé'",
+    "start:aria2": "aria2c --enable-rpc --rpc-listen-all=false --rpc-listen-port=6800 --rpc-secret=5eYu4XrI4E4c/IgcnK1qeGSNxfxB3cTaZTLkNl6C2+0= --daemon || echo 'aria2 déjà démarré ou non installé'",
     "stop:services": "pkill redis-server || true && pkill aria2c || true",
     "setup": "./scripts/setup.sh",
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
