@@ -40,7 +40,7 @@ export interface FailedEvent {
   message: string;
 }
 
-@WSGateway()  // Configuration centralisée dans SocketIOAdapter
+@WSGateway()  // Configuration centralisée dans SocketIOAdapter (namespace par défaut pour les clients UI)
 export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
@@ -114,8 +114,8 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   }
 
   // Broadcast to all connected clients
-  broadcast(event: string, data: any) {
-    this.server.emit(event, data);
+  broadcast(event: string, data: unknown) {
+    this.server.emit(event, data as never);
   }
 
   // Get connection statistics
@@ -128,35 +128,70 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
 }
 
 // Incoming events from worker (bridge to rooms + persist in DB)
-@WSGateway()
+@WSGateway({ namespace: '/worker' })
 export class WorkerEventsGateway {
   @WebSocketServer()
   server!: Server;
 
   private readonly logger = new Logger('WorkerEventsGateway');
 
+  // Throttle DB writes for progress events
+  private progressBuffer = new Map<string, ProgressEvent>();
+  private progressTimers = new Map<string, NodeJS.Timeout>();
+  private throttleMs = parseInt(process.env.PROGRESS_THROTTLE_MS || '300', 10);
+
   constructor(private downloads: DownloadsService) {}
+
+  // Authenticate worker connections via token
+  handleConnection(client: Socket) {
+    const auth = client.handshake.auth as { token?: string } | undefined;
+    const token = auth?.token ?? (client.handshake.headers['x-worker-token'] as string | undefined);
+    const expected = process.env.WORKER_TOKEN;
+    if (expected && token !== expected) {
+      this.logger.warn(`Unauthorized worker connection: ${client.id}`);
+      client.disconnect(true);
+      return;
+    }
+    this.logger.debug(`Worker connected: ${client.id}`);
+  }
 
   @SubscribeMessage('progress')
   async handleProgress(@MessageBody() event: ProgressEvent) {
-    try {
-      await this.downloads.updateJobProgress(
-        event.jobId,
-        event.progress,
-        event.stage,
-        event.speed,
-        event.eta,
-        event.totalBytes != null ? BigInt(event.totalBytes) : undefined,
-      );
-    } catch (e) {
-      this.logger.warn(`DB update failed for progress ${event.jobId}: ${e instanceof Error ? e.message : String(e)}`);
-    }
     const room = `job:${event.jobId}`;
     this.server.to(room).emit('progress', event);
+
+    // Buffer last event per job and throttle DB writes
+    this.progressBuffer.set(event.jobId, event);
+    if (this.progressTimers.has(event.jobId)) return;
+    const timer = setTimeout(async () => {
+      this.progressTimers.delete(event.jobId);
+      const buffered = this.progressBuffer.get(event.jobId);
+      if (!buffered) return;
+      try {
+        await this.downloads.updateJobProgress(
+          buffered.jobId,
+          buffered.progress,
+          buffered.stage,
+          buffered.speed,
+          buffered.eta,
+          buffered.totalBytes != null ? BigInt(buffered.totalBytes) : undefined,
+        );
+      } catch (e) {
+        this.logger.warn(`DB update failed for progress ${buffered.jobId}: ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        this.progressBuffer.delete(event.jobId);
+      }
+    }, this.throttleMs);
+    this.progressTimers.set(event.jobId, timer);
   }
 
   @SubscribeMessage('completed')
   async handleCompleted(@MessageBody() event: CompletedEvent) {
+    // Flush any buffered progress for this job
+    const t = this.progressTimers.get(event.jobId);
+    if (t) clearTimeout(t);
+    this.progressTimers.delete(event.jobId);
+    this.progressBuffer.delete(event.jobId);
     try {
       await this.downloads.setJobCompleted(event.jobId, event.filename, event.outputPath, event.size);
     } catch (e) {
@@ -168,6 +203,11 @@ export class WorkerEventsGateway {
 
   @SubscribeMessage('failed')
   async handleFailed(@MessageBody() event: FailedEvent) {
+    // Flush any buffered progress for this job
+    const t = this.progressTimers.get(event.jobId);
+    if (t) clearTimeout(t);
+    this.progressTimers.delete(event.jobId);
+    this.progressBuffer.delete(event.jobId);
     try {
       await this.downloads.updateJobStatus(event.jobId, 'failed', event.errorCode, event.message);
     } catch (e) {

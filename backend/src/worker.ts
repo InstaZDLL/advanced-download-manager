@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import 'reflect-metadata';
 import type { Job } from 'bullmq';
 import { Worker } from 'bullmq';
@@ -102,8 +103,8 @@ class DownloadWorker {
     const { jobId, url, type, headers, transcode, filenameHint } = job.data;
 
     try {
-      // Update job status to running
-      await this.updateJobStatus(jobId, 'running');
+      // Update job status to running (server-only writer)
+      this.wsClient.emitJobUpdate(jobId, { status: 'running' });
 
       this.logger.info(`🎬 Processing job ${jobId}: ${url} (type: ${type})`);
 
@@ -125,11 +126,7 @@ class DownloadWorker {
         stage: 'download',
         progress: 0,
       });
-      // Persist stage start
-      await this.db.job.update({
-        where: { id: jobId },
-        data: { stage: 'download', progress: 0, updatedAt: new Date() },
-      });
+      // Server will persist stage changes
 
       switch (type) {
         case 'youtube':
@@ -139,19 +136,6 @@ class DownloadWorker {
             jobId,
             headers,
             filenameHint,
-            onProgress: async ({ progress, stage, speed, eta, totalBytes }) => {
-              await this.db.job.update({
-                where: { id: jobId },
-                data: {
-                  progress,
-                  stage,
-                  speed,
-                  eta,
-                  totalBytes: totalBytes != null ? BigInt(totalBytes) : undefined,
-                  updatedAt: new Date(),
-                },
-              });
-            },
           });
           break;
 
@@ -163,19 +147,6 @@ class DownloadWorker {
             headers,
             filenameHint,
             format: 'best[ext=mp4]',
-            onProgress: async ({ progress, stage, speed, eta, totalBytes }) => {
-              await this.db.job.update({
-                where: { id: jobId },
-                data: {
-                  progress,
-                  stage,
-                  speed,
-                  eta,
-                  totalBytes: totalBytes != null ? BigInt(totalBytes) : undefined,
-                  updatedAt: new Date(),
-                },
-              });
-            },
           });
           break;
 
@@ -188,19 +159,6 @@ class DownloadWorker {
             jobId,
             headers,
             filenameHint,
-            onProgress: async ({ progress, stage, speed, eta, totalBytes }) => {
-              await this.db.job.update({
-                where: { id: jobId },
-                data: {
-                  progress,
-                  stage,
-                  speed,
-                  eta,
-                  totalBytes: totalBytes != null ? BigInt(totalBytes) : undefined,
-                  updatedAt: new Date(),
-                },
-              });
-            },
           });
           break;
       }
@@ -219,12 +177,6 @@ class DownloadWorker {
           outputDir: tempJobDir,
           jobId,
           options: transcode,
-          onProgress: async ({ progress, stage }) => {
-            await this.db.job.update({
-              where: { id: jobId },
-              data: { progress, stage, updatedAt: new Date() },
-            });
-          },
         });
       }
 
@@ -241,19 +193,7 @@ class DownloadWorker {
       // Get final file stats
       const stats = await fs.stat(finalPath);
 
-      // Update database
-      await this.db.job.update({
-        where: { id: jobId },
-        data: {
-          status: 'completed',
-          filename: finalFile.filename,
-          outputPath: finalPath,
-          totalBytes: BigInt(stats.size),
-          progress: 100,
-          stage: 'completed',
-          updatedAt: new Date(),
-        },
-      });
+      // Server-only writer will persist completion
 
       // Emit completion event
       this.wsClient.emitCompleted({
@@ -273,7 +213,6 @@ class DownloadWorker {
 
       const errorCode = error instanceof Error && 'code' in error ? (error as any).code : 'UNKNOWN_ERROR';
       const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.updateJobStatus(jobId, 'failed', errorCode, errorMessage);
 
       this.wsClient.emitFailed({
         jobId,

@@ -14,9 +14,13 @@ export class WebSocketClient {
 
   private connect() {
     const wsUrl = process.env.WS_URL || 'http://localhost:3000';
+    const path = process.env.SOCKET_IO_PATH || '/socket.io';
+    const token = process.env.WORKER_TOKEN;
 
-    this.socket = io(wsUrl, {
+    this.socket = io(`${wsUrl}/worker`, {
       transports: ['websocket'],
+      path,
+      auth: token ? { token } : undefined,
       reconnection: true,
       reconnectionAttempts: this.maxReconnectAttempts,
       reconnectionDelay: 1000,
