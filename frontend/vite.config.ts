@@ -9,7 +9,8 @@ export default defineConfig({
     react(),
     checker({
       typescript: { tsconfigPath: 'tsconfig.app.json' },
-      eslint: { lintCommand: 'eslint "./src/**/*.{ts,tsx}"' },
+      // Désactivé temporairement à cause d'incompatibilité avec ESLint v9
+      // eslint: { lintCommand: 'eslint "./src/**/*.{ts,tsx}"' },
     }),
   ],
   resolve: {
