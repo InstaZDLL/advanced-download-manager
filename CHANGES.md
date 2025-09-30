@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Option adapter Redis** pour Socket.IO (multi‑instances)
   - Activable via `SIO_USE_REDIS=true`; fallback en mémoire si non installé
 - Frontend: **toasts** de fin (succès/échec) en temps réel
+- Tests unitaires parseurs de progression: **yt-dlp**, **ffmpeg** (`out_time_ms`), **aria2** (progress/eta/totalBytes)
+- Test d’intégration léger: **WorkerEventsGateway** (throttle DB, flush sur `completed/failed`, émission vers `job:{jobId}`)
+- Script E2E manuel: `backend/scripts/e2e-live.ts` + `npm run e2e:live` (crée un job et logge `progress/completed/failed`)
+- CI GitHub Actions: `/.github/workflows/ci.yml`
+  - Backend: lint, typecheck, tests (Node 20/22) avec services Postgres 18 et Redis 8
+  - Frontend: lint, build
+- Workflow de release: `/.github/workflows/release-version-increment.yml`
+  - Calcul auto de version (Conventional Commits) et tag `vX.Y.Z` sur `main`
 
 ### Changed
 
