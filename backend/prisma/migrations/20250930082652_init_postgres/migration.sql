@@ -1,13 +1,13 @@
 -- CreateTable
 CREATE TABLE "jobs" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "url" TEXT NOT NULL,
     "type" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'queued',
     "stage" TEXT,
-    "progress" REAL NOT NULL DEFAULT 0,
+    "progress" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "speed" TEXT,
     "eta" INTEGER,
     "totalBytes" BIGINT,
@@ -17,19 +17,23 @@ CREATE TABLE "jobs" (
     "errorMessage" TEXT,
     "meta" TEXT,
     "headers" TEXT,
-    "transcode" TEXT
+    "transcode" TEXT,
+
+    CONSTRAINT "jobs_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "metrics" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "date" TEXT NOT NULL,
     "jobsTotal" INTEGER NOT NULL DEFAULT 0,
     "jobsCompleted" INTEGER NOT NULL DEFAULT 0,
     "jobsFailed" INTEGER NOT NULL DEFAULT 0,
     "bytesTotal" BIGINT NOT NULL DEFAULT 0,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "metrics_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
