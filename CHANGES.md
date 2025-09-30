@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed `emitDecoratorMetadata` support required for NestJS dependency injection
   - Added `nodemon.json` configuration for automatic recompilation on file changes
   - Resolved "Cannot read properties of undefined" errors in controllers
+- **API Client**: Fixed Fastify "Body cannot be empty" error for POST requests without body
+  - Modified `apiRequest` to only set `Content-Type: application/json` when body is present
+  - Resolved 400 errors on retry, cancel, pause, and resume endpoints
+- **Worker Paths**: Fixed aria2 download failures due to relative path resolution
+  - Converted all directory paths to absolute using `path.resolve()`
+  - aria2 daemon now correctly resolves download output directories
+  - Fixed "aria2 RPC error: 400 Bad Request" caused by invalid relative paths
 
 ### Security
 

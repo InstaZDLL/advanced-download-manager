@@ -89,8 +89,8 @@ class DownloadWorker {
   }
 
   private async ensureDirectories() {
-    const dataDir = process.env.DATA_DIR || './data';
-    const tempDir = process.env.TEMP_DIR || './tmp';
+    const dataDir = path.resolve(process.env.DATA_DIR || './data');
+    const tempDir = path.resolve(process.env.TEMP_DIR || './tmp');
 
     await fs.mkdir(dataDir, { recursive: true });
     await fs.mkdir(tempDir, { recursive: true });
@@ -107,9 +107,12 @@ class DownloadWorker {
 
       this.logger.info(`🎬 Processing job ${jobId}: ${url} (type: ${type})`);
 
-      // Create job-specific directories
-      const tempJobDir = path.join(process.env.TEMP_DIR || './tmp', jobId);
-      const dataJobDir = path.join(process.env.DATA_DIR || './data', jobId);
+      // Create job-specific directories (use absolute paths for aria2 compatibility)
+      const tempDir = path.resolve(process.env.TEMP_DIR || './tmp');
+      const dataDir = path.resolve(process.env.DATA_DIR || './data');
+
+      const tempJobDir = path.join(tempDir, jobId);
+      const dataJobDir = path.join(dataDir, jobId);
 
       await fs.mkdir(tempJobDir, { recursive: true });
       await fs.mkdir(dataJobDir, { recursive: true });
