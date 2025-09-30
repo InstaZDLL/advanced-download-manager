@@ -1,117 +1,71 @@
-# Plan corrigé (prêt à exécuter)
+# Plan d’architecture et migration (serveur seul writer + PostgreSQL)
 
-## 1) Architecture
+## 1) Objectif
 
-* **Front** : Vite + Tailwind (SPA). WebSocket pour le live, REST pour créer/piloter les tâches.
-* **API** : Node/TS **NestJS + Fastify** (perfs) + **Socket.IO** (ou WS natif).
-* **Queue** : **BullMQ (Redis)** pour limiter à **3 jobs concurrents** (globaux) et gérer retry/priorités.
-* **Workers** : process séparé (Node) qui lance `yt-dlp`, `ffmpeg`, ou appelle **aria2 RPC**.
-* **Stockage** :
+- **Serveur seul writer**: l’API NestJS est l’unique source d’écriture en DB (progress/status). Le worker n’écrit jamais en DB; il n’émet que des events.
+- **PostgreSQL**: base relationnelle principale. **Redis** en appui (Queue BullMQ, éventuellement adapter Socket.IO, cache léger/PubSub).
 
-  * Fichiers : répertoire `data/…` avec sous-dossiers par job (UUID).
-  * DB : **SQLite** (simple) via **Prisma** pour l’historique, états, métriques.
-* **Config** : `.env` (chemins binaires, quotas, API key, URL aria2, répertoire de sortie).
+## 2) Architecture
 
-## 2) Sécurité (durcie)
+- **Frontend**: React 19 + Vite + Tailwind. REST pour créer/piloter. WebSocket pour le live.
+- **API**: NestJS + Fastify + Socket.IO.
+- **Queue**: BullMQ (Redis), concurrence globale 3 jobs.
+- **Worker**: process Node (yt-dlp, aria2, ffmpeg). Émet `progress/completed/failed` via WS (namespace `/worker`).
+- **Stockage**:
+  - Fichiers: `backend/data/{jobId}/...` (temp `backend/tmp/{jobId}` → move atomique en fin de job).
+  - DB: **PostgreSQL** via Prisma. Le serveur persiste `progress/speed/eta/totalBytes` (throttle 2–4 Hz/job) et états terminaux.
+- **Config**: `.env` par service (backend/frontend). Clés/API, chemins binaires, quotas, origins CORS, DB URL.
 
-* **API key** optionnelle via header `x-api-key` (Guard Nest). Si absente → lecture seule.
-* **Rate limit** Fastify : `200 req / 15 min / IP`.
-* **CORS** : whitelist explicite des origines (URL front).
-* **Headers** : `helmet` (désactiver `crossOriginResourcePolicy` si tu sers des fichiers).
-* **Sanitisation** :
+## 3) WebSocket & sécurité
 
-  * Interdire `path` en entrée : **ne jamais** accepter un chemin fourni par l’utilisateur.
-  * Utiliser `sanitize-filename` pour **noms de fichiers dérivés** (titres) et imposer une **arborescence contrôlée** basée sur `jobId`.
-* **Téléchargements** :
+- **Namespaces**: `/jobs` (clients UI) et `/worker` (worker authentifié).
+- **Rooms**: `job:{jobId}` pour le push ciblé.
+- **Auth worker**: token côté client worker (`auth.token`) + guard/middleware côté serveur.
+- **Payloads**: valider `jobId`, types et bornes (`0 <= progress <= 100`). Ignorer events après `completed/failed`.
+- **Adapter Redis** (prod multi-instances): Socket.IO adapter pour diffuser entre nœuds.
 
-  * Forcer **temp dir** (`tmp/jobId`) → déplacer en `data/jobId` en fin de job (atomic).
-  * **Quota** (ex: max 2 Go/job, 20 Go global) + **TTL** de rétention (ex: 7 jours) + tâche cron de purge.
-* **Headers personnalisés/UA/Referer** : valider via **Zod** (liste blanche des clés autorisées).
+## 4) Contrats d’API
 
-## 3) Gestion de la concurrence (exactement 3 en parallèle)
+- REST
+  - `POST /downloads` → `{ jobId }`
+  - `GET /downloads/:jobId` → état courant (DB)
+  - `POST /downloads/:jobId/(cancel|pause|resume|retry)`
+  - `GET /files/:jobId` (métadonnées) | `GET /files/:jobId/download`
+- WebSocket
+  - `progress`: `{ jobId, stage, progress, speed?, eta?, totalBytes? }`
+  - `completed`: `{ jobId, filename, size, outputPath }`
+  - `failed`: `{ jobId, errorCode, message }`
+  - `job-update`: `{ jobId, status?, stage?, progress? }`
 
-* **BullMQ** : `concurrency: 3` côté worker global (un seul worker process) **ou** `maxStalledCount: 0` + `limiter: { max: 3, duration: 1000 }`.
-* Catégories de jobs :
+## 5) Modèle de données (Prisma, simplifié)
 
-  * `generic-download` (aria2)
-  * `yt-dlp` (avec/ sans post-process)
-  * `ffmpeg-transcode` (si nécessaire)
-* **Priorités** : `yt-dlp` (5), `generic` (3). **Retries** : 2 (backoff expo 5s/30s).
+- `jobs` (`id uuid`, `url`, `type`, `status queued|running|paused|failed|completed`, `stage`, `progress float`, `speed string?`, `eta int?`, `totalBytes bigint?`, `filename?`, `outputPath?`, `errorCode?`, `errorMessage?`, `meta text?`, `headers text?`, timestamps).
+- `metrics` (optionnel, agrégés journaliers).
 
-## 4) Intégration outils (sans surprises)
+## 6) Plan d’exécution (migration)
 
-* **aria2** : lancer en daemon avec RPC activée (`--enable-rpc --rpc-listen-all=false --rpc-secret=…`).
+1. Postgres opérationnel (docker compose) → OK.
+2. Prisma → provider `postgresql` et `DATABASE_URL` dans `backend/.env`.
+3. `npx prisma generate` puis `npx prisma migrate dev -n "init_postgres"` (dev) / `prisma migrate deploy` (prod).
+4. Worker: émettre uniquement via WS (pas d’écriture DB).
+5. Backend (namespace `/worker`): recevoir, throttle (2–4 Hz/job), `DownloadsService.updateJobProgress(...)`, re-diffuser vers `/jobs` room `job:{jobId}`.
+6. Frontend: réduire le polling quand socket healthy, fallback si déconnexion.
+7. Observabilité: métriques sockets, taux d’updates DB, logs erreurs; healthchecks Redis/aria2.
 
-  * Côté API : client JSON-RPC (`aria2.addUri`, `aria2.getGlobalStat`, `aria2.tellStatus`).
-* **yt-dlp** : via `execa` + parse `stderr` (progress) → émettre `progress` WS.
+## 7) Observabilité & robustesse
 
-  * Flags utiles : `--concurrent-fragments 5`, `--no-part`, `--newline`, `--user-agent`, `--referer`, `--output tmp/jobId/%(title)s.%(ext)s`.
-* **ffmpeg** : via `execa`, lecture périodique de `progress` (`-progress pipe:2 -nostats -loglevel error`), throttle CPU (nice/ionice si Linux).
+- Logs structurés (pino) avec `jobId` et `stage`.
+- Health: `GET /health` + Redis + aria2 RPC.
+- Watchdog: si aucun progress > 60s, kill + retry (yt-dlp/hls).
+- Sentry/équivalent pour exceptions en prod.
 
-## 5) API (contrat clair)
+## 8) Déploiement & rollback
 
-**REST**
+- Déploiement: `docker compose up -d postgres` → migrations Prisma → démarrer backend/worker.
+- Scale: plusieurs instances API + adapter Redis Socket.IO.
+- Rollback: conserver volume `postgres_data` + fichier SQLite historique. En cas d'incident, repointer `DATABASE_URL` vers SQLite temporairement (dev) ou restaurer snapshot Postgres.
 
-* `POST /downloads`
+## 9) Tests
 
-  * body: `{ url: string, type: 'auto'|'m3u8'|'file'|'youtube', headers?: { ua?: string, referer?: string, extra?: Record<string,string> }, transcode?: { to?: 'mp4', codec?: 'h264', crf?: number }, filenameHint?: string }`
-  * resp: `{ jobId: string }`
-* `GET /downloads/:jobId` → état courant (synchro DB)
-* `POST /downloads/:jobId/cancel`
-* `POST /downloads/:jobId/pause` / `resume` (si aria2)
-* `GET /files/:jobId` → métadonnées (taille, nom final)
-* **Téléchargement fichier** : `GET /files/:jobId/download` (disposition=attachment)
-
-**WebSocket (room = jobId)**
-
-* `progress` : `{ jobId, stage: 'queue'|'download'|'merge'|'transcode'|'finalize', pct: number, speed?: string, eta?: number, size?: number }`
-* `log` : `{ ts, level, message }`
-* `completed` : `{ jobId, filename, size }`
-* `failed` : `{ jobId, errorCode, message }`
-
-## 6) Modèle de données (Prisma, simplifié)
-
-* **Job**(id, url, type, createdAt, updatedAt, status: `queued|running|paused|failed|completed`, stage, pct, bytes, speed, eta, filename, outputPath, errorCode, errorMessage, meta json, headers json)
-* **Metrics** (optionnel) : journal agrégé par jour.
-
-## 7) Front (Vite + Tailwind)
-
-* Store `jobs[]` (id, status, pct, speed, eta, stage).
-* Sur `POST /downloads` → ouvrir WS `room:jobId`.
-* Cartes : actions **Pause/Resume/Cancel/Retry** (afficher seulement si applicable).
-* Filtres : `status`, `type`, `search` par URL.
-* Affichage **ETA** human-friendly, badge **stage**, toast à `completed/failed`.
-
-## 8) Observabilité & robustesse
-
-* **Logs structurés** (pino) : jobId, stage, event, duration.
-* **Healthchecks** : `GET /health` + check Redis + aria2 RPC.
-* **Sentry** (ou équivalent) pour exceptions.
-* **Watchdog** : si `yt-dlp` n’émet pas de progress > 60s → kill + retry.
-
-## 9) Déploiement & runtime
-
-* **Process manager** : pm2 / systemd (2 processus : API (web) + worker).
-* **Redis** : local ou conteneur.
-* **aria2c** : service dédié (systemd) avec dossier `tmp/` isolé.
-* **Docker** (recommandé) :
-
-  * Conteneur `api` (node:20-alpine)
-  * Conteneur `worker` (node:20-alpine)
-  * Conteneur `redis`
-  * Conteneur `aria2` (ou inclus dans worker si simple)
-  * Monte `data/` et `tmp/` comme volumes persistants.
-
-## 10) Limites & quotas (clairs et enforce)
-
-* **Global concurrent = 3** (queue).
-* **Taille max entrée** : 2 Go/job (arrêt si `bytes > quota`).
-* **Durée max job** : 2h (timeout worker).
-* **Rétention fichiers** : 7 jours (cron purge).
-* **Extensions autorisées** : liste blanche si `file` direct.
-
-## 11) Tests (rapides mais utiles)
-
-* **Unit** : parseurs de progress (yt-dlp/ffmpeg).
-* **E2E** : un URL HLS public, un YouTube, un gros ZIP via aria2.
-* **Résilience** : coupure réseau simulée, referer manquant, header invalide, disque plein.
+- Unit: parseurs de progress (yt-dlp/ffmpeg) et validators payloads WS.
+- E2E: création job → progress live → completion/échec → reconnexion sockets.

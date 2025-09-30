@@ -12,9 +12,9 @@ dist-ssr
 build
 
 # Environment files
-.env
-.env.local
-.env.*.local
+#.env
+#.env.local
+#.env.*.local
 
 # Logs
 logs
@@ -60,3 +60,4 @@ tmp/
 .git/objects/
 .git/index
 .git/logs/
+postgres_data/
