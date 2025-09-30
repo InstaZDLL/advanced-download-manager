@@ -1,25 +1,31 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: adm_database
     restart: unless-stopped
     environment:
-      POSTGRES_DB: adm_db
-      POSTGRES_USER: adm_user
-      POSTGRES_PASSWORD: adm_password
+      POSTGRES_DB: ${POSTGRES_DB:-adm_db}
+      POSTGRES_USER: ${POSTGRES_USER:-adm_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-adm_password}
       PGDATA: /var/lib/postgresql/data/pgdata
+      TZ: Europe/Zurich
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-scripts:/docker-entrypoint-initdb.d
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
     networks:
       - adm_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U adm_user -d adm_db"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-adm_user} -d ${POSTGRES_DB:-adm_db} || exit 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
   redis:
     image: redis:7-alpine
