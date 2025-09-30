@@ -45,7 +45,7 @@ export class SocketIOAdapter extends IoAdapter {
 
     // Activer l'adapter Redis si préparé via connectToRedis()
     if (this.redisAdapterFactory) {
-      server.adapter(this.redisAdapterFactory as unknown as any);
+      server.adapter(this.redisAdapterFactory as unknown as never);
     }
 
     return server;
