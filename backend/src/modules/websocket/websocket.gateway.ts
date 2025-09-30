@@ -2,6 +2,7 @@ import {
   WebSocketGateway as WSGateway,
   SubscribeMessage,
   MessageBody,
+  ConnectedSocket,
   OnGatewayConnection,
   OnGatewayDisconnect,
   WebSocketServer,
@@ -60,7 +61,10 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   }
 
   @SubscribeMessage('join-job')
-  handleJoinJob(@MessageBody() data: { jobId: string }, client: Socket) {
+  handleJoinJob(
+    @MessageBody() data: { jobId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
     const room = `job:${data.jobId}`;
     client.join(room);
     this.logger.debug(`Client ${client.id} joined room ${room}`);
@@ -68,7 +72,10 @@ export class WebSocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   }
 
   @SubscribeMessage('leave-job')
-  handleLeaveJob(@MessageBody() data: { jobId: string }, client: Socket) {
+  handleLeaveJob(
+    @MessageBody() data: { jobId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
     const room = `job:${data.jobId}`;
     client.leave(room);
     this.logger.debug(`Client ${client.id} left room ${room}`);

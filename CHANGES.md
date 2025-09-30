@@ -36,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Converted all directory paths to absolute using `path.resolve()`
   - aria2 daemon now correctly resolves download output directories
   - Fixed "aria2 RPC error: 400 Bad Request" caused by invalid relative paths
+- **WebSocket Gateway**: Fixed "Cannot read properties of undefined (reading 'join')" error
+  - Added missing `@ConnectedSocket()` decorator for Socket parameter injection
+  - Clients can now properly join/leave job rooms for real-time progress updates
 
 ### Security
 
@@ -49,6 +52,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `npm run dev` now compiles TypeScript properly before running
   - Worker process also uses nodemon for consistent behavior
   - Real-time recompilation on source file changes
+
+### Changed
+
+- **Frontend UX**: Amélioration de la réactivité de l'interface utilisateur
+  - Feedback immédiat lors de l'ajout d'un téléchargement avec message de succès
+  - Auto-join des WebSocket rooms pour les jobs actifs
+  - Polling réduit de 5s à 2s pour meilleure réactivité
+  - Invalidation immédiate de la query `downloads` après création de job
 
 ### Documentation
 
