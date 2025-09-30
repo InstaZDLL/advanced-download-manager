@@ -13,8 +13,11 @@ export function useWebSocket(url: string) {
 
   useEffect(() => {
     // Initialize WebSocket connection
-    const socket = io(url, {
+    const baseUrl = url || (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000';
+    const socketPath = (import.meta.env.VITE_SOCKET_IO_PATH as string) || '/socket.io';
+    const socket = io(baseUrl, {
       transports: ['websocket'],
+      path: socketPath,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,

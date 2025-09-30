@@ -69,6 +69,7 @@ function AppContent() {
                   return newSet;
                 });
               }}
+              socketConnected={connected}
             />
           </div>
         </div>

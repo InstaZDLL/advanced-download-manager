@@ -6,9 +6,10 @@ import { JobCard } from './JobCard';
 interface JobListProps {
   activeJobs: Set<string>;
   onJobUpdate: (jobId: string) => void;
+  socketConnected: boolean;
 }
 
-export function JobList({ activeJobs, onJobUpdate }: JobListProps) {
+export function JobList({ activeJobs, onJobUpdate, socketConnected }: JobListProps) {
   const [filters, setFilters] = useState({
     status: '',
     type: '',
@@ -25,7 +26,8 @@ export function JobList({ activeJobs, onJobUpdate }: JobListProps) {
         limit: 20,
         ...filters,
       }),
-    refetchInterval: 2000, // Refetch every 2 seconds for better responsiveness
+    // Désactive le polling si le socket est connecté (fallback sinon)
+    refetchInterval: socketConnected ? false : 2000,
   });
 
   const handleFilterChange = (field: keyof typeof filters, value: string) => {
