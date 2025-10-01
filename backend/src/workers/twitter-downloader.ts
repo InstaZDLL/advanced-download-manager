@@ -3,6 +3,8 @@ import type { ExecaError } from 'execa';
 import type pino from 'pino';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import archiver from 'archiver';
+import { createWriteStream } from 'fs';
 import type { WebSocketClient } from './websocket-client.js';
 
 export interface TwitterOptions {
@@ -241,13 +243,19 @@ export class TwitterDownloader {
         return { filename, filepath, size: stats.size };
       }
 
-      // For multiple files, create a summary file or return first file
-      // For now, return the first file (could be enhanced to zip multiple files)
-      const filename = files[0];
-      const filepath = path.join(outputDir, filename);
-      const stats = await fs.stat(filepath);
+      // For multiple files, create a zip archive
+      this.logger.info(`Zipping ${files.length} files into archive...`);
+      const zipFilename = `twitter-media-${extractedTweetId || extractedUsername || 'archive'}.zip`;
+      const zipPath = path.join(outputDir, zipFilename);
 
-      return { filename, filepath, size: stats.size };
+      await this.zipFiles(outputDir, files, zipPath);
+
+      // Get zip file stats
+      const stats = await fs.stat(zipPath);
+
+      this.logger.info(`Created zip archive: ${zipFilename} (${stats.size} bytes)`);
+
+      return { filename: zipFilename, filepath: zipPath, size: stats.size };
 
     } catch (error) {
       if (isExecaError(error)) {
@@ -257,5 +265,44 @@ export class TwitterDownloader {
       }
       throw error;
     }
+  }
+
+  /**
+   * Zip multiple files into a single archive
+   */
+  private async zipFiles(baseDir: string, files: string[], outputPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const output = createWriteStream(outputPath);
+      const archive = archiver('zip', {
+        zlib: { level: 9 } // Maximum compression
+      });
+
+      output.on('close', () => {
+        this.logger.info(`Archive created: ${archive.pointer()} total bytes`);
+        resolve();
+      });
+
+      archive.on('error', (err) => {
+        reject(err);
+      });
+
+      archive.on('warning', (err) => {
+        if (err.code === 'ENOENT') {
+          this.logger.warn(`Archive warning: ${err.message}`);
+        } else {
+          reject(err);
+        }
+      });
+
+      archive.pipe(output);
+
+      // Add all files to the archive
+      for (const file of files) {
+        const filePath = path.join(baseDir, file);
+        archive.file(filePath, { name: file });
+      }
+
+      archive.finalize();
+    });
   }
 }

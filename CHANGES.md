@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Auto-détection des URLs Twitter/X dans le formulaire frontend (patterns `twitter.com` et `x.com`)
   - Extraction automatique de tweet ID et username depuis les URLs
   - Options configurables: type de média (images/vidéos/tout), retweets, nombre max de tweets
+  - **Auto-zip des fichiers multiples**: création automatique d'une archive `.zip` (compression max) si plusieurs fichiers sont téléchargés
   - Binaire `twitter-media-downloader` organisé dans `backend/bin/`
   - Documentation complète dans `backend/bin/README.md` avec instructions d'installation
 
@@ -34,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `TWITTER_PROXY` (optionnel, pour proxy)
 - **Architecture**: Plan d'intégration Twitter documenté dans `docs/PLAN.md` (section 10)
 - **Organisation**: Binaire déplacé de la racine vers `backend/bin/` (ignoré par git)
+- **Dépendances**: Ajout de `archiver` pour la création d'archives ZIP
 
 ### Fixed
 
