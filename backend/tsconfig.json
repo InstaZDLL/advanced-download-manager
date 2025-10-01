@@ -30,6 +30,6 @@
     "sourceMap": true,
     "declaration": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "prisma/migrations/worker-gateway.spec.ts"],
   "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
 }
