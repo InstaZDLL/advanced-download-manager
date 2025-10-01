@@ -24,6 +24,11 @@ function extractUsername(url: string): string | null {
   return match?.[1] ?? null;
 }
 
+// Detect Pinterest URLs
+function detectPinterestUrl(url: string): boolean {
+  return /pinterest\.com\//i.test(url);
+}
+
 export function DownloadForm({ onJobCreated }: DownloadFormProps) {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState<CreateDownloadRequest>({
@@ -34,9 +39,12 @@ export function DownloadForm({ onJobCreated }: DownloadFormProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Auto-detect Twitter URLs and update type
+  // Auto-detect URLs and update type
   useEffect(() => {
-    if (formData.url && detectTwitterUrl(formData.url)) {
+    if (!formData.url) return;
+
+    // Auto-detect Twitter
+    if (detectTwitterUrl(formData.url)) {
       if (formData.type === 'auto') {
         setFormData(prev => ({ ...prev, type: 'twitter' }));
       }
@@ -54,6 +62,13 @@ export function DownloadForm({ onJobCreated }: DownloadFormProps) {
             ...(username ? { username } : {}),
           }
         }));
+      }
+    }
+
+    // Auto-detect Pinterest
+    if (detectPinterestUrl(formData.url)) {
+      if (formData.type === 'auto') {
+        setFormData(prev => ({ ...prev, type: 'pinterest' }));
       }
     }
   }, [formData.url, formData.type]);
@@ -118,6 +133,7 @@ export function DownloadForm({ onJobCreated }: DownloadFormProps) {
           <option value="youtube">YouTube/Video</option>
           <option value="m3u8">HLS Stream (M3U8)</option>
           <option value="twitter">Twitter/X Media</option>
+          <option value="pinterest">Pinterest</option>
           <option value="file">Direct File</option>
         </select>
       </div>
@@ -244,6 +260,70 @@ export function DownloadForm({ onJobCreated }: DownloadFormProps) {
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-xs text-gray-600">Include retweets</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Pinterest Options */}
+          {formData.type === 'pinterest' && (
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Pinterest Options</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="pinterestMaxImages" className="block text-xs text-gray-600 mb-1">
+                    Max Images
+                  </label>
+                  <input
+                    type="number"
+                    id="pinterestMaxImages"
+                    min="1"
+                    max="500"
+                    value={formData.pinterest?.maxImages || 100}
+                    onChange={(e) =>
+                      handleInputChange('pinterest', {
+                        ...formData.pinterest,
+                        maxImages: parseInt(e.target.value),
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="pinterestResolution" className="block text-xs text-gray-600 mb-1">
+                    Min Resolution (optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="pinterestResolution"
+                    value={formData.pinterest?.resolution || ''}
+                    onChange={(e) =>
+                      handleInputChange('pinterest', {
+                        ...formData.pinterest,
+                        resolution: e.target.value,
+                      })
+                    }
+                    placeholder="1920x1080"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-2">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.pinterest?.includeVideos || false}
+                    onChange={(e) =>
+                      handleInputChange('pinterest', {
+                        ...formData.pinterest,
+                        includeVideos: e.target.checked,
+                      })
+                    }
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-xs text-gray-600">Include videos</span>
                 </label>
               </div>
             </div>

@@ -5,7 +5,7 @@ import { Redis } from 'ioredis';
 export interface DownloadJobData {
   jobId: string;
   url: string;
-  type: 'auto' | 'm3u8' | 'file' | 'youtube' | 'twitter';
+  type: 'auto' | 'm3u8' | 'file' | 'youtube' | 'twitter' | 'pinterest';
   headers?: {
     ua?: string;
     referer?: string;
@@ -24,6 +24,12 @@ export interface DownloadJobData {
     mediaType?: 'images' | 'videos' | 'all';
     includeRetweets?: boolean;
     maxTweets?: number;
+  };
+  // Pinterest-specific options
+  pinterest?: {
+    maxImages?: number;
+    includeVideos?: boolean;
+    resolution?: string;
   };
 }
 

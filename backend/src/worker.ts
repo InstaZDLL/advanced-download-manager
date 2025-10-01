@@ -10,6 +10,7 @@ import { YtDlpDownloader } from './workers/ytdlp-downloader.js';
 import { Aria2Downloader } from './workers/aria2-downloader.js';
 import { FfmpegTranscoder } from './workers/ffmpeg-transcoder.js';
 import { TwitterDownloader } from './workers/twitter-downloader.js';
+import { PinterestDownloader } from './workers/pinterest-downloader.js';
 import { WebSocketClient } from './workers/websocket-client.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -24,6 +25,7 @@ class DownloadWorker {
   private aria2: Aria2Downloader;
   private ffmpeg: FfmpegTranscoder;
   private twitter: TwitterDownloader;
+  private pinterest: PinterestDownloader;
 
   constructor() {
     const pinoLogger = (pino as any).default || pino;
@@ -52,6 +54,7 @@ class DownloadWorker {
     this.aria2 = new Aria2Downloader(this.logger, this.wsClient);
     this.ffmpeg = new FfmpegTranscoder(this.logger, this.wsClient);
     this.twitter = new TwitterDownloader(this.logger, this.wsClient);
+    this.pinterest = new PinterestDownloader(this.logger, this.wsClient);
   }
 
   async start() {
@@ -103,7 +106,7 @@ class DownloadWorker {
   }
 
   private async processJob(job: Job<DownloadJobData>) {
-    const { jobId, url, type, headers, transcode, filenameHint, twitter } = job.data;
+    const { jobId, url, type, headers, transcode, filenameHint, twitter, pinterest } = job.data;
 
     try {
       // Update job status to running (server-only writer)
@@ -165,6 +168,18 @@ class DownloadWorker {
             maxTweets: twitter?.maxTweets,
             cookiesPath: process.env.TWITTER_COOKIES_PATH,
             proxy: process.env.TWITTER_PROXY,
+          });
+          break;
+
+        case 'pinterest':
+          downloadResult = await this.pinterest.download({
+            url,
+            outputDir: tempJobDir,
+            jobId,
+            maxImages: pinterest?.maxImages,
+            includeVideos: pinterest?.includeVideos,
+            resolution: pinterest?.resolution,
+            cookiesPath: process.env.PINTEREST_COOKIES_PATH,
           });
           break;
 

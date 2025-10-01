@@ -5,6 +5,40 @@ All notable changes to the Advanced Download Manager (ADM) project will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2025-10-01
+
+### Added
+
+- **Pinterest Integration**: Support complet pour télécharger des images depuis Pinterest
+  - Worker backend `PinterestDownloader` avec parsing de progression
+  - Utilise le package Python `pinterest-dl` (installation via `pip install pinterest-dl`)
+  - Auto-détection des URLs Pinterest dans le formulaire frontend
+  - Options configurables: nombre max d'images (1-500), vidéos, résolution minimale (WIDTHxHEIGHT)
+  - **Auto-zip des fichiers multiples**: création automatique d'une archive `.zip` si plusieurs fichiers
+  - Support boards, pins, et search queries
+  - Authentication optionnelle via cookies pour pins privés
+
+### Changed
+
+- **Types partagés**: Ajout du type `'pinterest'` dans les interfaces TypeScript
+  - `DownloadJobData` (backend): nouveau champ `pinterest?` avec options
+  - `CreateDownloadRequest` (frontend): support des options Pinterest
+  - `Job` interface: type `'pinterest'` dans l'union
+- **Frontend UI**:
+  - Nouveau sélecteur "Pinterest" dans le menu déroulant de type
+  - Section d'options avancées spécifique à Pinterest (max images, vidéos, résolution)
+  - Auto-détection et changement de type lors de la saisie d'URL Pinterest
+- **Configuration**: Variables d'environnement dans `.env.example`
+  - `PINTEREST_DL_PATH=pinterest-dl`
+  - `PINTEREST_COOKIES_PATH` (optionnel, pour pins privés)
+
+### Fixed
+
+- **Pinterest URL Resolution**: Résolution automatique des URLs raccourcies `pin.it`
+  - Utilisation de `curl` pour suivre les redirections vers les URLs complètes Pinterest
+  - Fix de l'erreur `InvalidBoardUrlError` pour les liens `pin.it`
+  - Les URLs raccourcies sont automatiquement converties en URLs complètes avant traitement
+
 ## [1.0.9] - 2025-10-01
 
 ### Added

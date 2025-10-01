@@ -6,10 +6,11 @@ A modern, full-featured download manager built with React 19, NestJS, and TypeSc
 
 ## Features
 
-- **Multiple Download Types**: YouTube videos, Twitter/X media, HLS streams (M3U8), direct file downloads
+- **Multiple Download Types**: YouTube videos, Twitter/X media, Pinterest images, HLS streams (M3U8), direct file downloads
 - **Real-time Progress**: WebSocket-based live updates with progress bars, speed, and ETA
 - **Queue Management**: Concurrent download limiting (max 3 jobs) with priority queuing
 - **Twitter/X Integration**: Download media from tweets and user profiles with auto-detection
+- **Pinterest Integration**: Download images and videos from Pinterest boards and pins with auto-detection
 - **Transcoding**: FFmpeg integration for video format conversion
 - **Security**: API key authentication, rate limiting, CORS protection, input sanitization
 - **Web Interface**: Modern React 19 frontend with Tailwind CSS
@@ -25,7 +26,7 @@ A modern, full-featured download manager built with React 19, NestJS, and TypeSc
 - **BullMQ** + Redis for job queue management
 - **Prisma** + SQLite for database
 - **Socket.IO** for WebSocket communication
-- **External tools**: yt-dlp, aria2, ffmpeg, twitter-media-downloader
+- **External tools**: yt-dlp, aria2, ffmpeg, twitter-media-downloader, pinterest-dl
 
 ### Frontend
 
@@ -114,7 +115,7 @@ cd backend && npm run dev
 
 ```bash
 sudo apt-get install redis-server aria2 ffmpeg
-pip install yt-dlp
+pip install yt-dlp pinterest-dl
 
 # Twitter media downloader
 wget https://github.com/Preloading/TwitterMediaDownloader/releases/latest/download/twitter-media-downloader-linux-amd64 -O backend/bin/twitter-media-downloader
@@ -125,7 +126,7 @@ chmod +x backend/bin/twitter-media-downloader
 
 ```bash
 brew install redis aria2 ffmpeg
-pip install yt-dlp
+pip install yt-dlp pinterest-dl
 
 # Twitter media downloader
 wget https://github.com/Preloading/TwitterMediaDownloader/releases/latest/download/twitter-media-downloader-darwin-amd64 -O backend/bin/twitter-media-downloader
@@ -220,10 +221,14 @@ ARIA2_SECRET=5eYu4XrI4E4c/IgcnK1qeGSNxfxB3cTaZTLkNl6C2+0=
 YTDLP_PATH=yt-dlp
 FFMPEG_PATH=ffmpeg
 TWMD_PATH=./bin/twitter-media-downloader
+PINTEREST_DL_PATH=pinterest-dl
 
 # Twitter (optional)
 # TWITTER_COOKIES_PATH=/path/to/cookies.txt
 # TWITTER_PROXY=socks5://127.0.0.1:9050
+
+# Pinterest (optional)
+# PINTEREST_COOKIES_PATH=/path/to/pinterest-cookies.txt
 
 # Limits
 MAX_CONCURRENT_JOBS=3
@@ -248,7 +253,7 @@ Content-Type: application/json
 
 {
   "url": "https://example.com/video",
-  "type": "auto|youtube|m3u8|twitter|file",
+  "type": "auto|youtube|m3u8|twitter|pinterest|file",
   "headers": {
     "ua": "Custom User Agent",
     "referer": "https://example.com"
@@ -263,6 +268,11 @@ Content-Type: application/json
     "mediaType": "all|images|videos",
     "includeRetweets": false,
     "maxTweets": 50
+  },
+  "pinterest": {
+    "maxImages": 100,
+    "includeVideos": false,
+    "resolution": "1920x1080"
   }
 }
 ```

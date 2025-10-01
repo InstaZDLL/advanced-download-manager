@@ -1,7 +1,7 @@
 export interface Job {
   jobId: string;
   url: string;
-  type: 'auto' | 'm3u8' | 'file' | 'youtube' | 'twitter';
+  type: 'auto' | 'm3u8' | 'file' | 'youtube' | 'twitter' | 'pinterest';
   status: 'queued' | 'running' | 'paused' | 'failed' | 'completed' | 'cancelled';
   stage?: 'queue' | 'download' | 'merge' | 'transcode' | 'finalize' | 'completed';
   progress: number;
@@ -17,7 +17,7 @@ export interface Job {
 
 export interface CreateDownloadRequest {
   url: string;
-  type?: 'auto' | 'm3u8' | 'file' | 'youtube' | 'twitter';
+  type?: 'auto' | 'm3u8' | 'file' | 'youtube' | 'twitter' | 'pinterest';
   headers?: {
     ua?: string;
     referer?: string;
@@ -35,6 +35,11 @@ export interface CreateDownloadRequest {
     mediaType?: 'images' | 'videos' | 'all';
     includeRetweets?: boolean;
     maxTweets?: number;
+  };
+  pinterest?: {
+    maxImages?: number;
+    includeVideos?: boolean;
+    resolution?: string;
   };
 }
 
