@@ -16,7 +16,7 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const [activeJobs, setActiveJobs] = useState(new Set<string>());
-  const { connected, lastMessage, joinJob, leaveJob } = useWebSocket((import.meta.env.VITE_API_URL as string) || 'http://localhost:3000');
+  const { connected, serverAvailable, lastMessage, joinJob, leaveJob } = useWebSocket((import.meta.env.VITE_API_URL as string) || 'http://localhost:3000');
 
   // Simple toast notifications
   const [toasts, setToasts] = useState<Array<{ id: string; type: 'success' | 'error'; message: string }>>([]);
@@ -29,18 +29,19 @@ function AppContent() {
   };
   const dismissToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
 
-  // Auto-join active jobs WebSocket rooms
+  // Auto-join active jobs WebSocket rooms; re-join on reconnect
   useEffect(() => {
+    if (!connected) return;
     activeJobs.forEach(jobId => {
       joinJob(jobId);
     });
-
     return () => {
+      if (!connected) return;
       activeJobs.forEach(jobId => {
         leaveJob(jobId);
       });
     };
-  }, [activeJobs, joinJob, leaveJob]);
+  }, [activeJobs, joinJob, leaveJob, connected]);
 
   useEffect(() => {
     if (lastMessage) {
@@ -126,6 +127,7 @@ function AppContent() {
                 });
               }}
               socketConnected={connected}
+              serverAvailable={serverAvailable}
               onActiveJobsChange={useCallback((currentActive: Set<string>) => {
                 // Merge with existing active jobs to keep joins for in-flight jobs
                 setActiveJobs(prev => {

@@ -8,9 +8,10 @@ interface JobListProps {
   onJobUpdate: (jobId: string) => void;
   socketConnected: boolean;
   onActiveJobsChange?: (jobIds: Set<string>) => void;
+  serverAvailable?: boolean;
 }
 
-export function JobList({ activeJobs, onJobUpdate, socketConnected, onActiveJobsChange }: JobListProps) {
+export function JobList({ activeJobs, onJobUpdate, socketConnected, onActiveJobsChange, serverAvailable = true }: JobListProps) {
   const [filters, setFilters] = useState({
     status: '',
     type: '',
@@ -27,8 +28,15 @@ export function JobList({ activeJobs, onJobUpdate, socketConnected, onActiveJobs
         limit: 20,
         ...filters,
       }),
-    // Désactive le polling si le socket est connecté (fallback sinon)
-    refetchInterval: socketConnected ? false : 2000,
+    // Désactive le polling si le socket est connecté
+    // et coupe aussi le polling quand le serveur est indisponible
+    refetchInterval: socketConnected ? false : (serverAvailable ? 2000 : false),
+    retry: (failureCount, err: unknown) => {
+      const message = (err && typeof err === 'object' && 'message' in err) ? String((err as { message?: unknown }).message) : '';
+      // Limite le bruit réseau quand le serveur est down
+      const isNetworkRefused = message.includes('ERR_CONNECTION_REFUSED');
+      return !isNetworkRefused && failureCount < 2;
+    },
   });
 
   const handleFilterChange = (field: keyof typeof filters, value: string) => {

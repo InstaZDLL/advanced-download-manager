@@ -8,6 +8,7 @@ export interface WebSocketMessage {
 
 export function useWebSocket(url: string) {
   const [connected, setConnected] = useState(false);
+  const [serverAvailable, setServerAvailable] = useState(true);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
@@ -19,8 +20,10 @@ export function useWebSocket(url: string) {
       transports: ['websocket'],
       path: socketPath,
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1500,
+      reconnectionDelayMax: 8000,
+      randomizationFactor: 0.5,
     });
 
     socketRef.current = socket;
@@ -28,16 +31,23 @@ export function useWebSocket(url: string) {
     socket.on('connect', () => {
       console.warn('🔌 WebSocket connected');
       setConnected(true);
+      setServerAvailable(true);
     });
 
     socket.on('disconnect', (reason) => {
       console.warn('🔌 WebSocket disconnected:', reason);
       setConnected(false);
+      // mark server as unavailable when transport closes or io server disconnects
+      if (reason === 'transport close' || reason === 'io server disconnect') {
+        setServerAvailable(false);
+      }
     });
 
     socket.on('connect_error', (error) => {
-      console.error('🔌 WebSocket connection error:', error);
+      // downgrade noise and mark server as down
+      console.warn('🔌 WebSocket connection error:', (error as Error)?.message || String(error));
       setConnected(false);
+      setServerAvailable(false);
     });
 
     // Listen for all job-related events
@@ -62,7 +72,14 @@ export function useWebSocket(url: string) {
     });
 
     return () => {
-      socket.disconnect();
+      // Avoid disconnecting a socket that hasn't established yet to prevent noisy errors
+      if (socket.connected) {
+        socket.disconnect();
+      } else {
+        // clean up listeners to avoid leaks; the transport will close itself
+        socket.removeAllListeners();
+        socket.close();
+      }
     };
   }, [url]);
 
@@ -80,6 +97,7 @@ export function useWebSocket(url: string) {
 
   return {
     connected,
+    serverAvailable,
     lastMessage,
     joinJob,
     leaveJob,

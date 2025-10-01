@@ -140,7 +140,10 @@ export class WorkerEventsGateway {
   private progressTimers = new Map<string, NodeJS.Timeout>();
   private throttleMs = parseInt(process.env.PROGRESS_THROTTLE_MS || '300', 10);
 
-  constructor(private downloads: DownloadsService) {}
+  constructor(
+    private downloads: DownloadsService,
+    private uiGateway: WebSocketGateway, // emit to default namespace for UI clients
+  ) {}
 
   // Authenticate worker connections via token
   handleConnection(client: Socket) {
@@ -157,8 +160,8 @@ export class WorkerEventsGateway {
 
   @SubscribeMessage('progress')
   async handleProgress(@MessageBody() event: ProgressEvent) {
-    const room = `job:${event.jobId}`;
-    this.server.to(room).emit('progress', event);
+    // Relay to UI namespace immediately for live updates
+    this.uiGateway.emitProgress(event);
 
     // Buffer last event per job and throttle DB writes
     this.progressBuffer.set(event.jobId, event);
@@ -197,8 +200,8 @@ export class WorkerEventsGateway {
     } catch (e) {
       this.logger.warn(`DB update failed for completed ${event.jobId}: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const room = `job:${event.jobId}`;
-    this.server.to(room).emit('completed', event);
+    // Relay to UI namespace
+    this.uiGateway.emitCompleted(event);
   }
 
   @SubscribeMessage('failed')
@@ -213,8 +216,8 @@ export class WorkerEventsGateway {
     } catch (e) {
       this.logger.warn(`DB update failed for failed ${event.jobId}: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const room = `job:${event.jobId}`;
-    this.server.to(room).emit('failed', event);
+    // Relay to UI namespace
+    this.uiGateway.emitFailed(event);
   }
 
   @SubscribeMessage('job-update')
@@ -233,7 +236,7 @@ export class WorkerEventsGateway {
     } catch (e) {
       this.logger.warn(`DB update failed for job-update ${data.jobId}: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const room = `job:${data.jobId}`;
-    this.server.to(room).emit('job-update', data);
+    // Relay to UI namespace
+    this.uiGateway.emitJobUpdate(data.jobId, { status: data.status, stage: data.stage, progress: data.progress });
   }
 }
