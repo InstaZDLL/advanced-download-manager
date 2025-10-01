@@ -105,7 +105,9 @@ export class TwitterDownloader {
     private logger: pino.Logger,
     private wsClient: WebSocketClient,
   ) {
-    this.twmdPath = process.env.TWMD_PATH || './bin/twitter-media-downloader';
+    // Use absolute path to ensure binary is found from any working directory
+    const relativePath = process.env.TWMD_PATH || './bin/twitter-media-downloader';
+    this.twmdPath = path.resolve(relativePath);
   }
 
   async download(options: TwitterOptions): Promise<{ filename: string; filepath: string; size?: number }> {
