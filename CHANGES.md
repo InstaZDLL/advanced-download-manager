@@ -432,3 +432,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Audit logging
 - [ ] Content scanning and validation
 - [ ] Network isolation options
+## [1.0.8] - 2025-10-01
+
+### Fixed
+
+- Frontend: progression en direct rétablie (plus de saut 0% → 100%)
+  - Auto-join des rooms WebSocket `job:{jobId}` pour tous les jobs `running/queued` après chaque fetch de la liste
+  - Nettoyage des rooms lors des événements `completed`/`failed` côté client
+  - Aucun changement backend requis (les événements `progress` étaient bien émis; le client ne rejoignait pas toujours les rooms après rafraîchissement)

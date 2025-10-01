@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { JobCard } from './JobCard';
@@ -7,9 +7,10 @@ interface JobListProps {
   activeJobs: Set<string>;
   onJobUpdate: (jobId: string) => void;
   socketConnected: boolean;
+  onActiveJobsChange?: (jobIds: Set<string>) => void;
 }
 
-export function JobList({ activeJobs, onJobUpdate, socketConnected }: JobListProps) {
+export function JobList({ activeJobs, onJobUpdate, socketConnected, onActiveJobsChange }: JobListProps) {
   const [filters, setFilters] = useState({
     status: '',
     type: '',
@@ -69,6 +70,19 @@ export function JobList({ activeJobs, onJobUpdate, socketConnected }: JobListPro
 
   const jobs = data?.jobs || [];
   const pagination = data?.pagination;
+
+  // Notify parent about currently active jobs (running/queued)
+  // so it can join corresponding WebSocket rooms for live updates
+  // Useful on first load or page refresh where no rooms are joined yet
+  // Trigger only when jobs list changes
+  useEffect(() => {
+    if (!onActiveJobsChange) return;
+    const currentActive = new Set<string>();
+    for (const j of jobs) {
+      if (j.status === 'running' || j.status === 'queued') currentActive.add(j.jobId);
+    }
+    onActiveJobsChange(currentActive);
+  }, [onActiveJobsChange, jobs]);
 
   return (
     <div>

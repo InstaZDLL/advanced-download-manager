@@ -51,10 +51,22 @@ function AppContent() {
       if (lastMessage.type === 'completed') {
         const d = lastMessage.data as { jobId: string; filename: string };
         pushToast({ id: `ok-${d.jobId}`, type: 'success', message: `Terminé: ${d.filename}` });
+        // Remove from active jobs when completed
+        setActiveJobs(prev => {
+          const next = new Set(prev);
+          next.delete(d.jobId);
+          return next;
+        });
       }
       if (lastMessage.type === 'failed') {
         const d = lastMessage.data as { jobId: string; message: string };
         pushToast({ id: `ko-${d.jobId}`, type: 'error', message: `Échec: ${d.message}` });
+        // Remove from active jobs when failed
+        setActiveJobs(prev => {
+          const next = new Set(prev);
+          next.delete(d.jobId);
+          return next;
+        });
       }
     }
   }, [lastMessage]);
@@ -114,6 +126,10 @@ function AppContent() {
                 });
               }}
               socketConnected={connected}
+              onActiveJobsChange={(currentActive) => {
+                // Merge with existing active jobs to keep joins for in-flight jobs
+                setActiveJobs(prev => new Set<string>([...prev, ...currentActive]));
+              }}
             />
           </div>
         </div>
