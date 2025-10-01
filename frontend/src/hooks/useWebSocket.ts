@@ -11,6 +11,40 @@ export function useWebSocket(url: string) {
   const [serverAvailable, setServerAvailable] = useState(true);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const probeTimerRef = useRef<number | null>(null);
+  const probeDelayRef = useRef(1500); // backoff in ms
+  const probeLoggedRef = useRef(false);
+
+  const probeHealth = async (baseUrl: string): Promise<boolean> => {
+    const controller = new AbortController();
+    const t = window.setTimeout(() => controller.abort(), 1200);
+    try {
+      const res = await fetch(new URL('/health', baseUrl).toString(), { signal: controller.signal });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      window.clearTimeout(t);
+    }
+  };
+
+  const scheduleProbe = useCallback((socket: Socket, baseUrl: string) => {
+    if (probeTimerRef.current) return; // already scheduled
+    const delay = Math.min(probeDelayRef.current, 8000);
+    probeTimerRef.current = window.setTimeout(async () => {
+      probeTimerRef.current = null;
+      const ok = await probeHealth(baseUrl);
+      if (ok) {
+        setServerAvailable(true);
+        try { socket.connect(); } catch { /* ignore */ }
+      } else {
+        setServerAvailable(false);
+        // increase backoff and schedule again
+        probeDelayRef.current = Math.min(delay * 1.5, 8000);
+        scheduleProbe(socket, baseUrl);
+      }
+    }, delay) as unknown as number;
+  }, []);
 
   useEffect(() => {
     // Initialize WebSocket connection
@@ -24,6 +58,7 @@ export function useWebSocket(url: string) {
       reconnectionDelay: 1500,
       reconnectionDelayMax: 8000,
       randomizationFactor: 0.5,
+      autoConnect: false, // we'll probe the server first to avoid noisy errors when down
     });
 
     socketRef.current = socket;
@@ -32,6 +67,8 @@ export function useWebSocket(url: string) {
       console.warn('🔌 WebSocket connected');
       setConnected(true);
       setServerAvailable(true);
+      probeDelayRef.current = 1500; // reset backoff
+      probeLoggedRef.current = false;
     });
 
     socket.on('disconnect', (reason) => {
@@ -41,13 +78,23 @@ export function useWebSocket(url: string) {
       if (reason === 'transport close' || reason === 'io server disconnect') {
         setServerAvailable(false);
       }
+      // start probing to reconnect without spamming websocket errors
+      scheduleProbe(socket, baseUrl);
     });
 
     socket.on('connect_error', (error) => {
       // downgrade noise and mark server as down
-      console.warn('🔌 WebSocket connection error:', (error as Error)?.message || String(error));
+      if (!probeLoggedRef.current) {
+        console.warn('🔌 WebSocket connection error (muted):', (error as Error)?.message || String(error));
+        probeLoggedRef.current = true; // log first occurrence only
+      }
       setConnected(false);
       setServerAvailable(false);
+      // stop trying immediately; probing will decide when to reconnect
+      try { socket.disconnect(); } catch {
+        // ignore
+      }
+      scheduleProbe(socket, baseUrl);
     });
 
     // Listen for all job-related events
@@ -72,16 +119,21 @@ export function useWebSocket(url: string) {
     });
 
     return () => {
+      // cleanup probe timer
+      if (probeTimerRef.current) {
+        window.clearTimeout(probeTimerRef.current);
+        probeTimerRef.current = null;
+      }
       // Avoid disconnecting a socket that hasn't established yet to prevent noisy errors
       if (socket.connected) {
-        socket.disconnect();
+        try { socket.disconnect(); } catch { /* ignore */ }
       } else {
         // clean up listeners to avoid leaks; the transport will close itself
-        socket.removeAllListeners();
-        socket.close();
+        try { socket.removeAllListeners(); socket.close(); } catch { /* ignore */ }
       }
     };
-  }, [url]);
+  }, [url, scheduleProbe]);
+
 
   const joinJob = useCallback((jobId: string) => {
     if (socketRef.current?.connected) {
