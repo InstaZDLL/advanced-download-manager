@@ -9,6 +9,7 @@ import type { DownloadJobData } from './shared/queue.service.js';
 import { YtDlpDownloader } from './workers/ytdlp-downloader.js';
 import { Aria2Downloader } from './workers/aria2-downloader.js';
 import { FfmpegTranscoder } from './workers/ffmpeg-transcoder.js';
+import { TwitterDownloader } from './workers/twitter-downloader.js';
 import { WebSocketClient } from './workers/websocket-client.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -22,6 +23,7 @@ class DownloadWorker {
   private ytdlp: YtDlpDownloader;
   private aria2: Aria2Downloader;
   private ffmpeg: FfmpegTranscoder;
+  private twitter: TwitterDownloader;
 
   constructor() {
     const pinoLogger = (pino as any).default || pino;
@@ -49,6 +51,7 @@ class DownloadWorker {
     this.ytdlp = new YtDlpDownloader(this.logger, this.wsClient);
     this.aria2 = new Aria2Downloader(this.logger, this.wsClient);
     this.ffmpeg = new FfmpegTranscoder(this.logger, this.wsClient);
+    this.twitter = new TwitterDownloader(this.logger, this.wsClient);
   }
 
   async start() {
@@ -100,7 +103,7 @@ class DownloadWorker {
   }
 
   private async processJob(job: Job<DownloadJobData>) {
-    const { jobId, url, type, headers, transcode, filenameHint } = job.data;
+    const { jobId, url, type, headers, transcode, filenameHint, twitter } = job.data;
 
     try {
       // Update job status to running (server-only writer)
@@ -147,6 +150,21 @@ class DownloadWorker {
             headers,
             filenameHint,
             format: 'best[ext=mp4]',
+          });
+          break;
+
+        case 'twitter':
+          downloadResult = await this.twitter.download({
+            url,
+            outputDir: tempJobDir,
+            jobId,
+            tweetId: twitter?.tweetId,
+            username: twitter?.username,
+            mediaType: twitter?.mediaType,
+            includeRetweets: twitter?.includeRetweets,
+            maxTweets: twitter?.maxTweets,
+            cookiesPath: process.env.TWITTER_COOKIES_PATH,
+            proxy: process.env.TWITTER_PROXY,
           });
           break;
 

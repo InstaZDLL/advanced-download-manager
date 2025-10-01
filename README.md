@@ -2,13 +2,14 @@
 
 [![CI](https://github.com/InstaZDLL/advanced-download-manager/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/InstaZDLL/advanced-download-manager/actions/workflows/ci.yml)
 
-A modern, full-featured download manager built with React 19, NestJS, and TypeScript. Supports YouTube downloads, HLS streams, direct file downloads, and transcoding with real-time progress updates.
+A modern, full-featured download manager built with React 19, NestJS, and TypeScript. Supports YouTube downloads, Twitter/X media, HLS streams, direct file downloads, and transcoding with real-time progress updates.
 
 ## Features
 
-- **Multiple Download Types**: YouTube videos, HLS streams (M3U8), direct file downloads
+- **Multiple Download Types**: YouTube videos, Twitter/X media, HLS streams (M3U8), direct file downloads
 - **Real-time Progress**: WebSocket-based live updates with progress bars, speed, and ETA
 - **Queue Management**: Concurrent download limiting (max 3 jobs) with priority queuing
+- **Twitter/X Integration**: Download media from tweets and user profiles with auto-detection
 - **Transcoding**: FFmpeg integration for video format conversion
 - **Security**: API key authentication, rate limiting, CORS protection, input sanitization
 - **Web Interface**: Modern React 19 frontend with Tailwind CSS
@@ -24,7 +25,7 @@ A modern, full-featured download manager built with React 19, NestJS, and TypeSc
 - **BullMQ** + Redis for job queue management
 - **Prisma** + SQLite for database
 - **Socket.IO** for WebSocket communication
-- **External tools**: yt-dlp, aria2, ffmpeg
+- **External tools**: yt-dlp, aria2, ffmpeg, twitter-media-downloader
 
 ### Frontend
 
@@ -114,6 +115,10 @@ cd backend && npm run dev
 ```bash
 sudo apt-get install redis-server aria2 ffmpeg
 pip install yt-dlp
+
+# Twitter media downloader
+wget https://github.com/Preloading/TwitterMediaDownloader/releases/latest/download/twitter-media-downloader-linux-amd64 -O backend/bin/twitter-media-downloader
+chmod +x backend/bin/twitter-media-downloader
 ```
 
 **macOS:**
@@ -121,6 +126,10 @@ pip install yt-dlp
 ```bash
 brew install redis aria2 ffmpeg
 pip install yt-dlp
+
+# Twitter media downloader
+wget https://github.com/Preloading/TwitterMediaDownloader/releases/latest/download/twitter-media-downloader-darwin-amd64 -O backend/bin/twitter-media-downloader
+chmod +x backend/bin/twitter-media-downloader
 ```
 
 ### Alternative Scripts
@@ -210,6 +219,11 @@ ARIA2_RPC_URL=http://localhost:6800/jsonrpc
 ARIA2_SECRET=5eYu4XrI4E4c/IgcnK1qeGSNxfxB3cTaZTLkNl6C2+0=
 YTDLP_PATH=yt-dlp
 FFMPEG_PATH=ffmpeg
+TWMD_PATH=./bin/twitter-media-downloader
+
+# Twitter (optional)
+# TWITTER_COOKIES_PATH=/path/to/cookies.txt
+# TWITTER_PROXY=socks5://127.0.0.1:9050
 
 # Limits
 MAX_CONCURRENT_JOBS=3
@@ -234,7 +248,7 @@ Content-Type: application/json
 
 {
   "url": "https://example.com/video",
-  "type": "auto|youtube|m3u8|file",
+  "type": "auto|youtube|m3u8|twitter|file",
   "headers": {
     "ua": "Custom User Agent",
     "referer": "https://example.com"
@@ -244,7 +258,12 @@ Content-Type: application/json
     "codec": "h264",
     "crf": 23
   },
-  "filenameHint": "my-download"
+  "filenameHint": "my-download",
+  "twitter": {
+    "mediaType": "all|images|videos",
+    "includeRetweets": false,
+    "maxTweets": 50
+  }
 }
 ```
 

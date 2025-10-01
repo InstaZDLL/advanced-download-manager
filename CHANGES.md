@@ -5,6 +5,53 @@ All notable changes to the Advanced Download Manager (ADM) project will be docum
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.9] - 2025-10-01
+
+### Added
+
+- **Twitter/X Media Integration**: Support complet pour télécharger des médias depuis Twitter/X
+  - Worker backend `TwitterDownloader` avec parsing de progression basé sur le nombre de fichiers
+  - Support tweets uniques (`-t TWEET_ID`) et profils utilisateurs (`-u USERNAME`)
+  - Auto-détection des URLs Twitter/X dans le formulaire frontend (patterns `twitter.com` et `x.com`)
+  - Extraction automatique de tweet ID et username depuis les URLs
+  - Options configurables: type de média (images/vidéos/tout), retweets, nombre max de tweets
+  - Binaire `twitter-media-downloader` organisé dans `backend/bin/`
+  - Documentation complète dans `backend/bin/README.md` avec instructions d'installation
+
+### Changed
+
+- **Types partagés**: Ajout du type `'twitter'` dans les interfaces TypeScript
+  - `DownloadJobData` (backend): nouveau champ `twitter?` avec options
+  - `CreateDownloadRequest` (frontend): support des options Twitter
+  - `Job` interface: type `'twitter'` dans l'union
+- **Frontend UI**:
+  - Nouveau sélecteur "Twitter/X Media" dans le menu déroulant de type
+  - Section d'options avancées spécifique à Twitter (média type, max tweets, retweets)
+  - Auto-remplissage des champs tweet ID/username lors de la détection d'URL
+- **Configuration**: Variables d'environnement dans `.env.example`
+  - `TWMD_PATH=./bin/twitter-media-downloader`
+  - `TWITTER_COOKIES_PATH` (optionnel, pour tweets NSFW)
+  - `TWITTER_PROXY` (optionnel, pour proxy)
+- **Architecture**: Plan d'intégration Twitter documenté dans `docs/PLAN.md` (section 10)
+- **Organisation**: Binaire déplacé de la racine vers `backend/bin/` (ignoré par git)
+
+### Fixed
+
+- **Lint**: Import inutilisé `ExecaChildProcess` supprimé dans `twitter-downloader.ts`
+- **TypeScript**: Correction des types nullable dans `DownloadForm.tsx`
+  - Utilisation de `??` pour gérer les `undefined` dans l'extraction d'URL
+  - Spread conditionnel pour éviter les champs `undefined` dans les objets
+- **React Hooks**: Ajout de `formData.type` dans les dépendances de `useEffect`
+
+## [1.0.8] - 2025-10-01
+
+### Fixed
+
+- Frontend: progression en direct rétablie (plus de saut 0% → 100%)
+  - Auto-join des rooms WebSocket `job:{jobId}` pour tous les jobs `running/queued` après chaque fetch de la liste
+  - Nettoyage des rooms lors des événements `completed`/`failed` côté client
+  - Aucun changement backend requis (les événements `progress` étaient bien émis; le client ne rejoignait pas toujours les rooms après rafraîchissement)
+
 ## [1.0.7] - 2025-09-30
 
 ### Added

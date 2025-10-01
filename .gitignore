@@ -61,3 +61,4 @@ tmp/
 .git/index
 .git/logs/
 postgres_data/
+backend/bin/

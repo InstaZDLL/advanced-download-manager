@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const CreateDownloadSchema = z.object({
   url: z.string().url('Must be a valid URL'),
-  type: z.enum(['auto', 'm3u8', 'file', 'youtube']).default('auto'),
+  type: z.enum(['auto', 'm3u8', 'file', 'youtube', 'twitter']).default('auto'),
   headers: z.object({
     ua: z.string().optional(),
     referer: z.string().url().optional(),
@@ -14,6 +14,13 @@ export const CreateDownloadSchema = z.object({
     crf: z.number().min(1).max(51).default(23),
   }).optional(),
   filenameHint: z.string().optional(),
+  twitter: z.object({
+    tweetId: z.string().optional(),
+    username: z.string().optional(),
+    mediaType: z.enum(['images', 'videos', 'all']).default('all'),
+    includeRetweets: z.boolean().default(false),
+    maxTweets: z.number().min(1).max(200).default(50),
+  }).optional(),
 });
 
 export type CreateDownloadDto = z.infer<typeof CreateDownloadSchema>;

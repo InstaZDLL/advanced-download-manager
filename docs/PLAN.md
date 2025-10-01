@@ -70,16 +70,96 @@
 - Unit: parseurs de progress (yt-dlp/ffmpeg) et validators payloads WS.
 - E2E: création job → progress live → completion/échec → reconnexion sockets.
 
-## 10) Étapes optionnelles
+## 10) Intégration Twitter/X Media Downloader (twmd)
 
-- Tests d’intégration Gateway
+### Binaire et capacités
+- **Outil**: `twitter-media-downloader` (alias `twmd`), binaire standalone, API-less
+- **Capacités**:
+  - Téléchargement par tweet unique (`-t TWEET_ID`)
+  - Téléchargement par utilisateur (`-u USERNAME`, `-n NBR` pour limite)
+  - Filtres: images (`-i`), vidéos (`-v`), ou tout (`-a`)
+  - Support retweets (`-r`), mode update (`-U`)
+  - Format de nom personnalisé (`-f "{DATE} {USERNAME} {ID}"`)
+  - Auth cookies (`-C`) pour tweets NSFW
+  - Support proxy (`-p`)
+
+### Architecture d'intégration
+
+#### 1. Détection d'URL
+- **Patterns à matcher**:
+  - `https://twitter.com/*/status/*`
+  - `https://x.com/*/status/*`
+  - `https://twitter.com/*` (profil utilisateur)
+  - `https://x.com/*` (profil utilisateur)
+- **Extraction**: tweet ID depuis URL ou username pour profil
+
+#### 2. Worker Backend
+- **Fichier**: `backend/src/workers/twitter-downloader.ts`
+- **Classe**: `TwitterDownloader` (pattern similaire à `YtDlpDownloader`, `Aria2Downloader`)
+- **Méthode**: `download(options: TwitterOptions)`
+- **Options**:
+  ```typescript
+  interface TwitterOptions {
+    url: string;
+    outputDir: string;
+    jobId: string;
+    tweetId?: string;
+    username?: string;
+    mediaType?: 'images' | 'videos' | 'all';
+    includeRetweets?: boolean;
+    maxTweets?: number;
+  }
+  ```
+
+#### 3. Parsing de progression
+- **Défi**: `twmd` a une sortie moins structurée que yt-dlp/aria2
+- **Approche**:
+  - Parser les lignes de sortie (stdout/stderr)
+  - Détecter patterns: "Downloading...", "Downloaded X/Y", "Saved to..."
+  - Émettre `progress` via WebSocket (estimations basées sur compteur fichiers)
+  - Parser le résultat final pour lister les fichiers téléchargés
+
+#### 4. Type de job
+- **Nouveau type**: `'twitter'` (ajout dans `DownloadJobData.type`)
+- **Détection automatique**: lors de la soumission, détecter domaine `twitter.com` ou `x.com`
+
+#### 5. Modifications nécessaires
+
+**Backend**:
+- `src/workers/twitter-downloader.ts` (nouveau fichier)
+- `src/worker.ts`: ajouter case `'twitter'` dans le switch
+- `src/shared/queue.service.ts`: ajouter type `'twitter'` dans union type
+- `src/shared/dto/download.dto.ts`: documenter le nouveau type
+
+**Frontend**:
+- Détection URL Twitter dans le formulaire de soumission
+- Badge/icône spécifique pour jobs Twitter
+- Options UI: nombre de tweets, inclure retweets, type média
+
+#### 6. Configuration
+- **Variables d'environnement**:
+  - `TWMD_PATH` (chemin vers le binaire, défaut: `./twitter-media-downloader`)
+  - `TWITTER_COOKIES_PATH` (optionnel, pour auth NSFW)
+  - `TWITTER_PROXY` (optionnel)
+
+### Plan d'implémentation
+1. Créer `TwitterDownloader` avec parsing basique
+2. Ajouter le case dans `worker.ts`
+3. Tester avec un tweet simple
+4. Améliorer le parsing de progression
+5. Ajouter détection frontend + UI
+6. Support options avancées (cookies, proxy, filtres)
+
+## 11) Étapes optionnelles
+
+- Tests d'intégration Gateway
   - Valider: throttle des écritures DB (`PROGRESS_THROTTLE_MS`), flush sur `completed/failed`, émission aux rooms `job:{jobId}`.
   - Mock `DownloadsService` et `server.to(room).emit(...)`.
 - Script E2E (manuel)
   - Script Node qui crée un job (POST /downloads), rejoint la room Socket.IO, affiche `progress/completed/failed`.
   - Utile pour CI et vérification locale rapide.
 - Monitoring
-  - Métriques Socket.IO (connexions, events/s), fréquence d’updates DB, erreurs.
+  - Métriques Socket.IO (connexions, events/s), fréquence d'updates DB, erreurs.
   - Healthchecks Redis/Postgres/aria2.
 - CI
   - Jobs: `npm run lint`, `npm test`, build, éventuellement tests E2E (workflow conditionnel).

@@ -5,7 +5,7 @@ import { Redis } from 'ioredis';
 export interface DownloadJobData {
   jobId: string;
   url: string;
-  type: 'auto' | 'm3u8' | 'file' | 'youtube';
+  type: 'auto' | 'm3u8' | 'file' | 'youtube' | 'twitter';
   headers?: {
     ua?: string;
     referer?: string;
@@ -17,6 +17,14 @@ export interface DownloadJobData {
     crf?: number;
   };
   filenameHint?: string;
+  // Twitter-specific options
+  twitter?: {
+    tweetId?: string;
+    username?: string;
+    mediaType?: 'images' | 'videos' | 'all';
+    includeRetweets?: boolean;
+    maxTweets?: number;
+  };
 }
 
 @Injectable()

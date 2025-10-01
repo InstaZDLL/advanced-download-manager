@@ -1,10 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import type { CreateDownloadRequest } from '@/types';
 
 interface DownloadFormProps {
   onJobCreated: (jobId: string) => void;
+}
+
+// Detect Twitter/X URLs
+function detectTwitterUrl(url: string): boolean {
+  return /(?:twitter\.com|x\.com)\//i.test(url);
+}
+
+// Extract tweet ID from URL
+function extractTweetId(url: string): string | null {
+  const match = url.match(/(?:twitter\.com|x\.com)\/[^/]+\/status\/(\d+)/);
+  return match?.[1] ?? null;
+}
+
+// Extract username from URL
+function extractUsername(url: string): string | null {
+  const match = url.match(/(?:twitter\.com|x\.com)\/([^/]+)(?:\/)?$/);
+  return match?.[1] ?? null;
 }
 
 export function DownloadForm({ onJobCreated }: DownloadFormProps) {
@@ -16,6 +33,30 @@ export function DownloadForm({ onJobCreated }: DownloadFormProps) {
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Auto-detect Twitter URLs and update type
+  useEffect(() => {
+    if (formData.url && detectTwitterUrl(formData.url)) {
+      if (formData.type === 'auto') {
+        setFormData(prev => ({ ...prev, type: 'twitter' }));
+      }
+
+      // Auto-populate Twitter options
+      const tweetId = extractTweetId(formData.url);
+      const username = extractUsername(formData.url);
+
+      if (tweetId || username) {
+        setFormData(prev => ({
+          ...prev,
+          twitter: {
+            ...(prev.twitter || {}),
+            ...(tweetId ? { tweetId } : {}),
+            ...(username ? { username } : {}),
+          }
+        }));
+      }
+    }
+  }, [formData.url, formData.type]);
 
   const createDownloadMutation = useMutation({
     mutationFn: api.createDownload,
@@ -76,6 +117,7 @@ export function DownloadForm({ onJobCreated }: DownloadFormProps) {
           <option value="auto">Auto Detect</option>
           <option value="youtube">YouTube/Video</option>
           <option value="m3u8">HLS Stream (M3U8)</option>
+          <option value="twitter">Twitter/X Media</option>
           <option value="file">Direct File</option>
         </select>
       </div>
@@ -143,6 +185,69 @@ export function DownloadForm({ onJobCreated }: DownloadFormProps) {
               />
             </div>
           </div>
+
+          {/* Twitter Options */}
+          {formData.type === 'twitter' && (
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Twitter Options</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="twitterMediaType" className="block text-xs text-gray-600 mb-1">
+                    Media Type
+                  </label>
+                  <select
+                    id="twitterMediaType"
+                    value={formData.twitter?.mediaType || 'all'}
+                    onChange={(e) =>
+                      handleInputChange('twitter', { ...formData.twitter, mediaType: e.target.value as 'images' | 'videos' | 'all' })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">Images & Videos</option>
+                    <option value="images">Images Only</option>
+                    <option value="videos">Videos Only</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="twitterMaxTweets" className="block text-xs text-gray-600 mb-1">
+                    Max Tweets (for users)
+                  </label>
+                  <input
+                    type="number"
+                    id="twitterMaxTweets"
+                    min="1"
+                    max="200"
+                    value={formData.twitter?.maxTweets || 50}
+                    onChange={(e) =>
+                      handleInputChange('twitter', {
+                        ...formData.twitter,
+                        maxTweets: parseInt(e.target.value),
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-2">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.twitter?.includeRetweets || false}
+                    onChange={(e) =>
+                      handleInputChange('twitter', {
+                        ...formData.twitter,
+                        includeRetweets: e.target.checked,
+                      })
+                    }
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-xs text-gray-600">Include retweets</span>
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* Transcode Options */}
           <div>
