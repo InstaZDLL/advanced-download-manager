@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DownloadForm } from './components/DownloadForm';
 import { JobList } from './components/JobList';
@@ -126,10 +126,23 @@ function AppContent() {
                 });
               }}
               socketConnected={connected}
-              onActiveJobsChange={(currentActive) => {
+              onActiveJobsChange={useCallback((currentActive: Set<string>) => {
                 // Merge with existing active jobs to keep joins for in-flight jobs
-                setActiveJobs(prev => new Set<string>([...prev, ...currentActive]));
-              }}
+                setActiveJobs(prev => {
+                  // Compute union and avoid state update if identical
+                  const union = new Set<string>(prev);
+                  for (const id of currentActive) union.add(id);
+                  if (union.size === prev.size) {
+                    // Check deep equality to prevent unnecessary updates
+                    let identical = true;
+                    for (const id of prev) {
+                      if (!union.has(id)) { identical = false; break; }
+                    }
+                    if (identical) return prev; // no change
+                  }
+                  return union;
+                });
+              }, [])}
             />
           </div>
         </div>

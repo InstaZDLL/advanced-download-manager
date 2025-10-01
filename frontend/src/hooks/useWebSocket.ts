@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
 export interface WebSocketMessage {
@@ -66,17 +66,17 @@ export function useWebSocket(url: string) {
     };
   }, [url]);
 
-  const joinJob = (jobId: string) => {
+  const joinJob = useCallback((jobId: string) => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('join-job', { jobId });
     }
-  };
+  }, []);
 
-  const leaveJob = (jobId: string) => {
+  const leaveJob = useCallback((jobId: string) => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('leave-job', { jobId });
     }
-  };
+  }, []);
 
   return {
     connected,
