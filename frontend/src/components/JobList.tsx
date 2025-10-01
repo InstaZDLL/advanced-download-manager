@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { JobCard } from './JobCard';
@@ -41,6 +41,23 @@ export function JobList({ activeJobs, onJobUpdate, socketConnected, onActiveJobs
     setCurrentPage(1);
   };
 
+  const jobs = useMemo(() => data?.jobs ?? [], [data?.jobs]);
+
+  // Notify parent about currently active jobs (running/queued)
+  // so it can join corresponding WebSocket rooms for live updates
+  // Useful on first load or page refresh where no rooms are joined yet
+  // Trigger only when jobs list changes
+  useEffect(() => {
+    if (!onActiveJobsChange) return;
+    const currentActive = new Set<string>();
+    for (const j of jobs) {
+      if (j.status === 'running' || j.status === 'queued') currentActive.add(j.jobId);
+    }
+    onActiveJobsChange(currentActive);
+  }, [onActiveJobsChange, jobs]);
+
+  const pagination = data?.pagination;
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -68,21 +85,6 @@ export function JobList({ activeJobs, onJobUpdate, socketConnected, onActiveJobs
     );
   }
 
-  const jobs = data?.jobs || [];
-  const pagination = data?.pagination;
-
-  // Notify parent about currently active jobs (running/queued)
-  // so it can join corresponding WebSocket rooms for live updates
-  // Useful on first load or page refresh where no rooms are joined yet
-  // Trigger only when jobs list changes
-  useEffect(() => {
-    if (!onActiveJobsChange) return;
-    const currentActive = new Set<string>();
-    for (const j of jobs) {
-      if (j.status === 'running' || j.status === 'queued') currentActive.add(j.jobId);
-    }
-    onActiveJobsChange(currentActive);
-  }, [onActiveJobsChange, jobs]);
 
   return (
     <div>
