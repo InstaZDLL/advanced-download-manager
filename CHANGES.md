@@ -523,3 +523,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Auto-join des rooms WebSocket `job:{jobId}` pour tous les jobs `running/queued` après chaque fetch de la liste
   - Nettoyage des rooms lors des événements `completed`/`failed` côté client
   - Aucun changement backend requis (les événements `progress` étaient bien émis; le client ne rejoignait pas toujours les rooms après rafraîchissement)
+## [1.2.2] - 2025-10-07
+
+### Changed
+
+- WebSocket UI connection is now enabled only when downloads are running or queued
+  - Disconnects automatically when the last active job completes or fails
+  - Stops background health probes when disconnected to avoid unnecessary traffic
+- Jobs list polling runs only while there are active jobs and no WebSocket connection
+  - Prevents idle polling from triggering API rate limits
+- Frontend filters updated to include Twitter/X and Pinterest types
+
+### Fixed
+
+- Pinterest downloads and progress:
+  - Fallback logic: try share URLs with `invite_code`/`/sent` first (keeps access that worked previously), then try canonical `https://www.pinterest.com/pin/<ID>/`
+  - Canonicalization for stable pin/board URLs (without breaking invite-based access)
+  - Better error mapping: `EmptyResponseError` and invite/share variants → `AUTH_REQUIRED`; otherwise → `NO_IMAGES_FOUND`
+  - Live progress parser supports TQDM output: `Downloading Media: 15/100`, bare `15/100`, and `xx%|` percentage patterns
+  - Smooth incremental UI updates for Pinterest (no more 0% → 100% jump)

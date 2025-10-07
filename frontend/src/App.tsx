@@ -16,7 +16,11 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const [activeJobs, setActiveJobs] = useState(new Set<string>());
-  const { connected, serverAvailable, lastMessage, joinJob, leaveJob } = useWebSocket((import.meta.env.VITE_API_URL as string) || 'http://localhost:3000');
+  const { connected, serverAvailable, lastMessage, joinJob, leaveJob } = useWebSocket(
+    (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000',
+    // Enable WS only when there are active jobs
+    activeJobs.size > 0,
+  );
 
   // Simple toast notifications
   const [toasts, setToasts] = useState<Array<{ id: string; type: 'success' | 'error'; message: string }>>([]);

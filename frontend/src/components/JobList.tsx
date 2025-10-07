@@ -28,9 +28,9 @@ export function JobList({ activeJobs, onJobUpdate, socketConnected, onActiveJobs
         limit: 20,
         ...filters,
       }),
-    // Désactive le polling si le socket est connecté
-    // et coupe aussi le polling quand le serveur est indisponible
-    refetchInterval: socketConnected ? false : (serverAvailable ? 2000 : false),
+    // Poll only when we have active jobs and no socket connection.
+    // Also stop polling when the server is unavailable.
+    refetchInterval: (activeJobs.size === 0 || socketConnected) ? false : (serverAvailable ? 5000 : false),
     retry: (failureCount, err: unknown) => {
       const message = (err && typeof err === 'object' && 'message' in err) ? String((err as { message?: unknown }).message) : '';
       // Limite le bruit réseau quand le serveur est down
@@ -139,6 +139,8 @@ export function JobList({ activeJobs, onJobUpdate, socketConnected, onActiveJobs
               <option value="youtube">YouTube</option>
               <option value="m3u8">HLS Stream</option>
               <option value="file">Direct File</option>
+              <option value="twitter">Twitter/X</option>
+              <option value="pinterest">Pinterest</option>
             </select>
           </div>
 

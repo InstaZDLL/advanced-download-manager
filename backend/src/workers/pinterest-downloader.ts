@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import archiver from 'archiver';
 import { createWriteStream } from 'fs';
+import type { RmOptions } from 'fs';
 import type { WebSocketClient } from './websocket-client.js';
 
 export interface PinterestOptions {
@@ -21,23 +22,40 @@ export interface PinterestOptions {
  * Parse Pinterest downloader progress output
  * pinterest-dl shows progress via download counter
  */
-export function parsePinterestProgressLine(line: string): { downloaded?: number; total?: number } | null {
-  // Look for patterns like "Downloaded 5/20" or "Downloading image 5 of 20"
-  const progressMatch = line.match(/(?:Downloaded|Downloading)\s+(?:image\s+)?(\d+)\s*(?:\/|of)\s*(\d+)/i);
-  if (progressMatch) {
-    return {
-      downloaded: parseInt(progressMatch[1]),
-      total: parseInt(progressMatch[2])
-    };
+export function parsePinterestProgressLine(line: string): { downloaded?: number; total?: number; percent?: number } | null {
+  // Normalize whitespace
+  const s = line.trim();
+
+  // Common explicit patterns
+  const patterns: RegExp[] = [
+    /(?:Downloaded|Downloading)\s+(?:image|pin)?\s*(\d+)\s*(?:\/|of)\s*(\d+)/i, // Downloading image 5 of 20 / Downloaded 5/20
+    /(?:Saving|Saved|Scraping|Scraped)\s+(?:image|pin)?\s*(\d+)\s*(?:\/|of)\s*(\d+)/i, // Saved 3/10, Scraped pin 4 of 12
+    /\b(?:image|pin)\s*(\d+)\s*(?:\/|of)\s*(\d+)/i, // image 7/21
+    /\[(\d+)\s*\/\s*(\d+)\]/, // [5/20]
+    /\((\d+)\s*\/\s*(\d+)\)/, // (5/20)
+    /\bDownloading\s+Media:.*?\b(\d+)\s*\/\s*(\d+)\b/i, // Downloading Media: ... 15/100
+    /\b(\d+)\s*\/\s*(\d+)\b/, // bare 15/100 (fallback; keep after specific patterns)
+  ];
+
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m) {
+      return { downloaded: parseInt(m[1], 10), total: parseInt(m[2], 10) };
+    }
   }
 
-  // Look for completion messages
-  const completeMatch = line.match(/(?:Downloaded|Completed)\s+(\d+)\s+(?:image|file)/i);
+  // Completion messages like: "Downloaded 20 images", "Completed 8 files"
+  const completeMatch = s.match(/(?:Downloaded|Completed)\s+(\d+)\s+(?:image|images|file|files|pin|pins)\b/i);
   if (completeMatch) {
-    return {
-      downloaded: parseInt(completeMatch[1]),
-      total: parseInt(completeMatch[1])
-    };
+    const n = parseInt(completeMatch[1], 10);
+    return { downloaded: n, total: n };
+  }
+
+  // TQDM percentage pattern: "xx%|" seen in pinterest-dl output
+  const percentMatch = s.match(/\b(\d{1,3})%\|/);
+  if (percentMatch) {
+    const percent = Math.max(0, Math.min(100, parseInt(percentMatch[1], 10)));
+    return { percent };
   }
 
   return null;
@@ -59,11 +77,17 @@ function isExecaError(error: unknown): error is ExecaError<string> {
   );
 }
 
-export function parsePinterestErrorCode(stderr: string): PinterestErrorCode | undefined {
+export function parsePinterestErrorCode(stderr: string, contextUrl?: string): PinterestErrorCode | undefined {
   if (stderr.includes('Invalid URL') || stderr.includes('not found')) {
     return 'INVALID_URL';
   }
-  if (stderr.includes('login') || stderr.includes('authentication') || stderr.includes('private')) {
+  if (
+    stderr.includes('login') ||
+    stderr.includes('authentication') ||
+    stderr.includes('private') ||
+    stderr.includes('EmptyResponseError') ||
+    (contextUrl && /(invite_code=|\b(sent)\b)/i.test(contextUrl))
+  ) {
     return 'AUTH_REQUIRED';
   }
   if (stderr.includes('No images found') || stderr.includes('no results')) {
@@ -114,7 +138,6 @@ export class PinterestDownloader {
    * Resolve shortened Pinterest URLs (pin.it) to full URLs
    */
   private async resolveUrl(url: string): Promise<string> {
-    // Check if it's a shortened URL
     if (url.includes('pin.it')) {
       this.logger.info(`Resolving shortened URL: ${url}`);
       try {
@@ -130,6 +153,32 @@ export class PinterestDownloader {
     return url;
   }
 
+  /** Canonicalize Pinterest URLs to stable forms (non-authoritative; may drop invite tokens). */
+  private canonicalizePinterestUrl(url: string): string | null {
+    try {
+      const u = new URL(url);
+      if (!/(^|\.)pinterest\./.test(u.hostname)) return null;
+      // Canonicalize pin URLs: /pin/<id>/
+      const pinMatch = u.pathname.match(/\/pin\/(\d+)/);
+      if (pinMatch) {
+        const id = pinMatch[1];
+        const canonical = `https://www.pinterest.com/pin/${id}/`;
+        this.logger.info(`Canonicalized Pinterest pin URL: ${canonical}`);
+        return canonical;
+      }
+      // For board URLs, strip query and trailing segments beyond username/board
+      const boardMatch = u.pathname.match(/^\/([^/]+)\/([^/]+)\/?/);
+      if (boardMatch && !u.pathname.includes('/pin/')) {
+        const canonical = `https://www.pinterest.com/${boardMatch[1]}/${boardMatch[2]}/`;
+        this.logger.info(`Normalized Pinterest board URL: ${canonical}`);
+        return canonical;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   async download(options: PinterestOptions): Promise<{ filename: string; filepath: string; size?: number }> {
     const {
       outputDir,
@@ -141,126 +190,132 @@ export class PinterestDownloader {
     } = options;
 
     // Resolve shortened URLs
-    const url = await this.resolveUrl(options.url);
+    const resolved = await this.resolveUrl(options.url);
+    const canonical = this.canonicalizePinterestUrl(resolved);
 
-    // Build pinterest-dl command
-    const args: string[] = ['scrape', url];
+    const looksShared = /invite_code=|\b(sent)\b/i.test(resolved);
+    const candidates = Array.from(new Set<string>([
+      // Prefer share URL first if it contains invite token (worked for user before patch)
+      ...(looksShared ? [resolved] : []),
+      // Try canonical form
+      ...(canonical ? [canonical] : []),
+      // Fallback to resolved/original if different from canonical
+      ...(!looksShared && resolved && canonical !== resolved ? [resolved] : []),
+    ].filter(Boolean) as string[]));
 
-    // Output directory
-    args.push('-o', outputDir);
+    let lastError: unknown = null;
+    for (const url of candidates) {
+      // Build pinterest-dl command per attempt
+      const args: string[] = ['scrape', url];
+      args.push('-o', outputDir);
+      args.push('-n', String(maxImages));
+      if (includeVideos) args.push('--video');
+      if (resolution) args.push('-r', resolution);
+      if (cookiesPath) args.push('--cookies', cookiesPath);
+      args.push('--verbose');
 
-    // Maximum number of images
-    args.push('-n', String(maxImages));
+      this.logger.info(`Starting Pinterest download: ${this.pinterestDlPath} ${args.join(' ')}`);
 
-    // Include videos
-    if (includeVideos) {
-      args.push('--video');
-    }
+      let lastProgress = 0;
+      let totalImages = maxImages;
 
-    // Minimum resolution
-    if (resolution) {
-      args.push('-r', resolution);
-    }
+      const subprocess = execa(this.pinterestDlPath, args, { env: { ...process.env } });
 
-    // Cookies for authentication
-    if (cookiesPath) {
-      args.push('--cookies', cookiesPath);
-    }
-
-    // Verbose output for progress tracking
-    args.push('--verbose');
-
-    this.logger.info(`Starting Pinterest download: ${this.pinterestDlPath} ${args.join(' ')}`);
-
-    let lastProgress = 0;
-    let totalImages = maxImages;
-
-    const subprocess = execa(this.pinterestDlPath, args, {
-      env: {
-        ...process.env,
-      },
-    });
-
-    // Parse stdout for progress
-    subprocess.stdout?.on('data', (data: Buffer) => {
-      const lines = data.toString().split('\n');
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        this.logger.debug(`[pinterest-dl stdout] ${line}`);
-
-        const parsed = parsePinterestProgressLine(line);
-        if (parsed) {
-          if (parsed.total) {
-            totalImages = parsed.total;
-          }
-
-          if (parsed.downloaded !== undefined) {
-            const progress = Math.min(95, Math.floor((parsed.downloaded / totalImages) * 100));
-
-            if (progress > lastProgress) {
-              this.wsClient.emitProgress({
-                jobId,
-                stage: 'download',
-                progress,
-              });
-              lastProgress = progress;
+      subprocess.stdout?.on('data', (data: Buffer) => {
+        const lines = data.toString().split('\n');
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          this.logger.debug(`[pinterest-dl stdout] ${line}`);
+          const parsed = parsePinterestProgressLine(line);
+          if (parsed) {
+            if (parsed.total) totalImages = parsed.total;
+            let progress: number | null = null;
+            if (parsed.downloaded !== undefined && totalImages > 0) {
+              progress = Math.floor((parsed.downloaded / totalImages) * 100);
+            } else if (parsed.percent !== undefined) {
+              progress = parsed.percent;
+            }
+            if (progress != null) {
+              progress = Math.max(0, Math.min(95, progress));
+              if (progress > lastProgress) {
+                this.wsClient.emitProgress({ jobId, stage: 'download', progress });
+                lastProgress = progress;
+              }
             }
           }
         }
+      });
+
+      subprocess.stderr?.on('data', (data: Buffer) => {
+        const lines = data.toString().split('\n');
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          this.logger.warn(`[pinterest-dl stderr] ${line}`);
+        }
+      });
+
+      try {
+        await subprocess;
+        const files = await fs.readdir(outputDir);
+        if (files.length === 0) {
+          // No files produced, consider retrying next candidate
+          const err = new Error('No images downloaded from Pinterest') as PinterestError;
+          err.code = looksShared ? 'AUTH_REQUIRED' : 'NO_IMAGES_FOUND';
+          throw err;
+        }
+
+        this.logger.info(`Downloaded ${files.length} file(s) from Pinterest`);
+        if (files.length === 1) {
+          const filename = files[0];
+          const filepath = path.join(outputDir, filename);
+          const stats = await fs.stat(filepath);
+          return { filename, filepath, size: stats.size };
+        }
+
+        // Create zip for multiple files
+        const pinterestId = extractPinterestId(url) || 'pinterest';
+        const zipFilename = `pinterest-${pinterestId}.zip`;
+        const zipPath = path.join(outputDir, zipFilename);
+        await this.zipFiles(outputDir, files, zipPath);
+        const stats = await fs.stat(zipPath);
+        this.logger.info(`Created zip archive: ${zipFilename} (${stats.size} bytes)`);
+        return { filename: zipFilename, filepath: zipPath, size: stats.size };
+      } catch (error) {
+        lastError = error;
+        // If process error, map code for diagnostics and try next candidate if any
+        if (isExecaError(error)) {
+          const stderr = error.stderr || '';
+          const errorCode = parsePinterestErrorCode(stderr, url) || 'NETWORK_ERROR';
+          this.logger.warn(`Pinterest attempt failed for URL ${url} with code ${errorCode}`);
+        } else if (error && typeof error === 'object' && 'code' in error) {
+          const code = (error as PinterestError).code;
+          this.logger.warn(`Pinterest attempt failed for URL ${url} with code ${(code as string) || 'UNKNOWN'}`);
+        } else {
+          this.logger.warn(`Pinterest attempt failed for URL ${url}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        // Clean directory between attempts to avoid mixing files
+        try {
+          const files = await fs.readdir(outputDir);
+          await Promise.all(files.map(f => fs.rm(path.join(outputDir, f), { force: true } as RmOptions)));
+        } catch {
+          // ignore cleanup errors
+        }
+        // Try next candidate
       }
-    });
-
-    // Parse stderr for errors
-    subprocess.stderr?.on('data', (data: Buffer) => {
-      const lines = data.toString().split('\n');
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        this.logger.warn(`[pinterest-dl stderr] ${line}`);
-      }
-    });
-
-    try {
-      await subprocess;
-
-      // List downloaded files
-      const files = await fs.readdir(outputDir);
-      if (files.length === 0) {
-        throw new Error('No images downloaded from Pinterest');
-      }
-
-      this.logger.info(`Downloaded ${files.length} file(s) from Pinterest`);
-
-      // For single file, return it directly
-      if (files.length === 1) {
-        const filename = files[0];
-        const filepath = path.join(outputDir, filename);
-        const stats = await fs.stat(filepath);
-        return { filename, filepath, size: stats.size };
-      }
-
-      // For multiple files, create a zip archive
-      this.logger.info(`Zipping ${files.length} files into archive...`);
-      const pinterestId = extractPinterestId(url) || 'pinterest';
-      const zipFilename = `pinterest-${pinterestId}.zip`;
-      const zipPath = path.join(outputDir, zipFilename);
-
-      await this.zipFiles(outputDir, files, zipPath);
-
-      // Get zip file stats
-      const stats = await fs.stat(zipPath);
-
-      this.logger.info(`Created zip archive: ${zipFilename} (${stats.size} bytes)`);
-
-      return { filename: zipFilename, filepath: zipPath, size: stats.size };
-
-    } catch (error) {
-      if (isExecaError(error)) {
-        const stderr = error.stderr || '';
-        const errorCode = parsePinterestErrorCode(stderr) || 'NETWORK_ERROR';
-        throw createPinterestError(error, errorCode);
-      }
-      throw error;
     }
+
+    // If all attempts failed, throw the last error
+    if (lastError) {
+      if (isExecaError(lastError)) {
+        const stderr = lastError.stderr || '';
+        const errorCode = parsePinterestErrorCode(stderr, resolved) || 'NETWORK_ERROR';
+        throw createPinterestError(lastError, errorCode);
+      }
+      throw lastError;
+    }
+
+    // Should not reach here
+    throw new Error('Pinterest download failed with no error');
   }
 
   /**

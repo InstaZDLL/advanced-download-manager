@@ -6,7 +6,7 @@ export interface WebSocketMessage {
   data: unknown;
 }
 
-export function useWebSocket(url: string) {
+export function useWebSocket(url: string, enabled = true) {
   const [connected, setConnected] = useState(false);
   const [serverAvailable, setServerAvailable] = useState(true);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
@@ -47,6 +47,22 @@ export function useWebSocket(url: string) {
   }, []);
 
   useEffect(() => {
+    if (!enabled) {
+      // If disabled, ensure any existing socket is torn down and do nothing else
+      if (socketRef.current) {
+        try { socketRef.current.removeAllListeners(); } catch { /* noop */ }
+        try { socketRef.current.disconnect(); } catch { /* noop */ }
+        try { socketRef.current.close(); } catch { /* noop */ }
+        socketRef.current = null;
+      }
+      // Also clear any pending probe timer
+      if (probeTimerRef.current) {
+        window.clearTimeout(probeTimerRef.current);
+        probeTimerRef.current = null;
+      }
+      setConnected(false);
+      return;
+    }
     // Initialize WebSocket connection
     const baseUrl = url || (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000';
     const socketPath = (import.meta.env.VITE_SOCKET_IO_PATH as string) || '/socket.io';
@@ -91,9 +107,7 @@ export function useWebSocket(url: string) {
       setConnected(false);
       setServerAvailable(false);
       // stop trying immediately; probing will decide when to reconnect
-      try { socket.disconnect(); } catch {
-        // ignore
-      }
+      try { socket.disconnect(); } catch { /* noop */ }
       scheduleProbe(socket, baseUrl);
     });
 
@@ -126,13 +140,13 @@ export function useWebSocket(url: string) {
       }
       // Avoid disconnecting a socket that hasn't established yet to prevent noisy errors
       if (socket.connected) {
-        try { socket.disconnect(); } catch { /* ignore */ }
+        try { socket.disconnect(); } catch { /* noop */ }
       } else {
         // clean up listeners to avoid leaks; the transport will close itself
-        try { socket.removeAllListeners(); socket.close(); } catch { /* ignore */ }
+        try { socket.removeAllListeners(); socket.close(); } catch { /* noop */ }
       }
     };
-  }, [url, scheduleProbe]);
+  }, [url, scheduleProbe, enabled]);
 
 
   const joinJob = useCallback((jobId: string) => {
