@@ -536,6 +536,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Frontend progress updates**: Smooth real-time progress bars for all download types
+  - Progress events now update React Query cache optimistically instead of invalidating
+  - Eliminates stuttering and jumps in progress bars (especially for aria2/generic file downloads)
+  - Updates happen every 2 seconds via WebSocket without triggering full API refetches
+  - Only terminal events (completed/failed/job-update) trigger full data refresh
 - Pinterest downloads and progress:
   - Fallback logic: try share URLs with `invite_code`/`/sent` first (keeps access that worked previously), then try canonical `https://www.pinterest.com/pin/<ID>/`
   - Canonicalization for stable pin/board URLs (without breaking invite-based access)

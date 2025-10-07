@@ -49,8 +49,26 @@ function AppContent() {
 
   useEffect(() => {
     if (lastMessage) {
-      // Handle WebSocket messages to update job list
-      queryClient.invalidateQueries({ queryKey: ['downloads'] });
+      // For progress events, update cache optimistically instead of invalidating
+      if (lastMessage.type === 'progress') {
+        const progressData = lastMessage.data as { jobId: string; stage: string; progress: number; eta?: number; totalBytes?: number; speed?: string };
+        // Update all cached download queries with the new progress
+        queryClient.setQueriesData({ queryKey: ['downloads'] }, (oldData: unknown) => {
+          if (!oldData || typeof oldData !== 'object' || !('jobs' in oldData)) return oldData;
+          const data = oldData as { jobs: Array<{ jobId: string; progress?: number; eta?: number; totalBytes?: number; speed?: string }>; pagination?: unknown };
+          return {
+            ...data,
+            jobs: data.jobs.map(job =>
+              job.jobId === progressData.jobId
+                ? { ...job, progress: progressData.progress, eta: progressData.eta, totalBytes: progressData.totalBytes, speed: progressData.speed }
+                : job
+            ),
+          };
+        });
+      } else {
+        // For other events (completed/failed/job-update), invalidate to get fresh data
+        queryClient.invalidateQueries({ queryKey: ['downloads'] });
+      }
 
       // Toasts for terminal events
       if (lastMessage.type === 'completed') {
